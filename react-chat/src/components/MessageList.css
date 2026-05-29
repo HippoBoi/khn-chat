@@ -1,15 +1,30 @@
 .message-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.75rem;
+  min-height: 320px;
+  max-height: 46vh;
+  padding: 1rem;
+  overflow-y: auto;
+  scrollbar-color: #b7c2d8 transparent;
 }
 
 .message-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  max-width: 480px;
+  gap: 0.6rem;
+  max-width: 100%;
   width: 100%;
+  border: 1px solid #edf1f7;
+  border-radius: 16px;
+  padding: 0.7rem 0.85rem;
+  color: #303b52;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(55, 76, 120, 0.08);
   word-break: break-word;
   overflow-wrap: break-word;
+}
+
+.message-item strong {
+  color: #172033;
 }

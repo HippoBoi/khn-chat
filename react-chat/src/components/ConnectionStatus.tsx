@@ -5,6 +5,9 @@ export function ConnectionStatus() {
   const isConnected = useChatStore((s) => s.isConnected);
 
   return (
-    <p>{isConnected ? '🟢 Connected' : '🔴 Disconnected'}</p>
+    <p className={`connection-status${isConnected ? ' is-connected' : ''}`}>
+      <span className="connection-dot" aria-hidden="true" />
+      {isConnected ? 'Connected' : 'Disconnected'}
+    </p>
   );
 }

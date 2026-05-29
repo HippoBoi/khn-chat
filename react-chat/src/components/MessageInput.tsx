@@ -30,7 +30,7 @@ export function MessageInput() {
   };
 
   return (
-    <div>
+    <div className="message-composer">
       <input
         type="text"
         value={text}
