@@ -6,12 +6,14 @@ import type { Message } from '../types/message';
 export function useSocket() {
   const addMessage = useChatStore((s) => s.addMessage);
   const setConnected = useChatStore((s) => s.setConnected);
+  const setChatVisible = useChatStore((s) => s.setChatVisible);
 
   useEffect(() => {
     socket.connect();
 
     socket.on('connect', () => {
       setConnected(true);
+      setChatVisible(true);
     });
 
     socket.on('disconnect', () => {
@@ -28,5 +30,5 @@ export function useSocket() {
       socket.off('message');
       socket.disconnect();
     };
-  }, [addMessage, setConnected]);
+  }, [addMessage, setConnected, setChatVisible]);
 }
