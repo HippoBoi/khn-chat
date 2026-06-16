@@ -8,22 +8,13 @@
    npm run dev
    ```
 
-2. **Vue Chat** (puerto 8001):
-
-   ```bash
-   cd vue-chat
-   npm install
-   npm run dev
-   ```
-
-3. **Backend** (es el mismo de las instrucciones):
+2. **Backend** (es el mismo de las instrucciones):
 
    ```bash
    cd backend
    npm install
    npm start
    ```
-
 
 # Chat realtime con Socket.io
 
@@ -36,12 +27,6 @@ El chat con React se conecta con el backend Socket.io utilizando un hook (useSoc
 Cuando el usuario envía un mensaje se emite llamando socket.emit(mensaje). Socket.io se encarga luego de entregarle el mensaje a los demás usuarios que estén suscritos al evento message
 
 Los mensajes se guardan en localStorage, entonces cuando el usuario reinicia la página siguen ahí.
-
-### Vue Chat
-
-El chat de Vue utiliza Pinia para manejo de estado y Pinia plugin persistedstate para que el estado persista en localStorage.
-
-Funciona igual que la app de React, tiene un composable useSocket que llama socket.connect y escucha los eventos connect, disconnect y message.
 
 ### Zustand
 
