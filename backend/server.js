@@ -22,6 +22,14 @@ const database = createPostgresDatabase({ connectionString: databaseUrl });
 
 const server = http.createServer(async (req, res) => {
     try {
+        setCorsHeaders(req, res);
+
+        if (req.method === "OPTIONS") {
+            res.writeHead(204);
+            res.end();
+            return;
+        }
+
         const requestUrl = new URL(req.url, `http://${req.headers.host}`);
 
         if (req.method === "GET" && (requestUrl.pathname === "/" || requestUrl.pathname === "/health")) {
@@ -276,6 +284,19 @@ function conversationRoom(conversationId) {
 function sendJson(res, statusCode, payload) {
     res.writeHead(statusCode, { "Content-Type": "application/json" });
     res.end(JSON.stringify(payload));
+}
+
+function setCorsHeaders(req, res) {
+    const requestOrigin = req.headers.origin;
+    const allowedOrigin = clientUrl === "*" ? "*" : clientUrl;
+
+    if (clientUrl === "*" || requestOrigin === clientUrl) {
+        res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+    }
+
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
 function readJsonBody(req) {

@@ -3,10 +3,25 @@ import { useChatStore } from '../store/useChatStore';
 import { PROFILE_PICTURES } from '../constants/profilePictures';
 import type { Message } from '../types/message';
 import './MessageList.css';
+import api from '../services/api';
+
+interface MessagesResponse {
+  messages: Message[];
+}
 
 export function MessageList() {
   const messages = useChatStore((s) => s.messages);
+  const setMessages = useChatStore((s) => s.setMessages);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      const response = await api.get<MessagesResponse>('/messages');
+      setMessages(response.data.messages);
+    };
+
+    fetchMessages();
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

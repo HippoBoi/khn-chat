@@ -8,6 +8,7 @@ interface ChatState {
   username: string;
   profilePictureIndex: number;
   addMessage: (message: Message) => void;
+  setMessages: (messages: Message[]) => void;
   setConnected: (connected: boolean) => void;
   setChatVisible: (visible: boolean) => void;
   setUsername: (username: string) => void;
@@ -22,8 +23,11 @@ export const useChatStore = create<ChatState>()((set) => ({
   profilePictureIndex: 0,
   addMessage: (message) =>
     set((state) => ({
-      messages: [...state.messages, message],
+      messages: state.messages.some((existing) => existing.id === message.id)
+        ? state.messages
+        : [...state.messages, message],
     })),
+  setMessages: (messages) => set({ messages }),
   setConnected: (connected) => set({ isConnected: connected }),
   setChatVisible: (visible) => set({ isChatVisible: visible }),
   setUsername: (username) => set({ username }),
