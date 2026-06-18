@@ -4,4 +4,5 @@ export interface Message {
   sender: string;
   timestamp: number;
   profilePictureIndex: number;
+  profilePictureUrl?: string | null;
 }

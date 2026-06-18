@@ -3,6 +3,8 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const { URL } = require("url");
+const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const { Pool } = require("pg");
 const { Server } = require("socket.io");
 
@@ -14,6 +16,12 @@ const allowedClientOrigins = parseAllowedOrigins(clientUrl);
 const defaultConversationId = process.env.DEFAULT_CONVERSATION_ID || "public";
 const messageHistoryLimit = Number(process.env.MESSAGE_HISTORY_LIMIT || 100);
 const databaseUrl = process.env.DATABASE_URL;
+const maxProfilePictureSizeBytes = 2 * 1024 * 1024;
+const allowedProfilePictureTypes = new Map([
+    ["image/png", "png"],
+    ["image/jpeg", "jpg"],
+    ["image/webp", "webp"],
+]);
 
 if (!databaseUrl) {
     throw new Error("DATABASE_URL is required. Add it to backend/.env before starting the server.");
@@ -35,6 +43,14 @@ const server = http.createServer(async (req, res) => {
 
         if (req.method === "GET" && (requestUrl.pathname === "/" || requestUrl.pathname === "/health")) {
             sendJson(res, 200, { status: "ok" });
+            return;
+        }
+
+        if (req.method === "POST" && requestUrl.pathname === "/uploads/profile-picture") {
+            const payload = await readJsonBody(req);
+            const upload = await createProfilePictureUpload(payload);
+
+            sendJson(res, 201, upload);
             return;
         }
 
@@ -128,6 +144,7 @@ function validateMessagePayload(payload, conversationId) {
     const text = String(payload.text || "").trim();
     const sender = String(payload.sender || "unnamed").trim();
     const profilePictureIndex = Number(payload.profilePictureIndex || 0);
+    const profilePictureUrl = validateProfilePictureUrl(payload.profilePictureUrl);
 
     if (!text) {
         throw httpError(400, "Message text is required");
@@ -142,7 +159,88 @@ function validateMessagePayload(payload, conversationId) {
         text,
         sender: sender || "unnamed",
         profilePictureIndex: Number.isFinite(profilePictureIndex) ? profilePictureIndex : 0,
+        profilePictureUrl,
     };
+}
+
+async function createProfilePictureUpload(payload) {
+    const upload = validateProfilePictureUploadPayload(payload);
+    const config = getS3ProfilePictureConfig();
+    const objectKey = `profile-pictures/${crypto.randomUUID()}.${upload.extension}`;
+    const publicUrl = `${config.publicBaseUrl}/${objectKey}`;
+    const command = new PutObjectCommand({
+        Bucket: config.bucket,
+        Key: objectKey,
+        ContentType: upload.contentType,
+    });
+    const uploadUrl = await getSignedUrl(config.client, command, { expiresIn: 300 });
+
+    return {
+        uploadUrl,
+        publicUrl,
+        key: objectKey,
+    };
+}
+
+function getS3ProfilePictureConfig() {
+    const bucket = process.env.S3_PROFILE_PICTURES_BUCKET;
+    const publicBaseUrl = normalizeUrlBase(process.env.S3_PROFILE_PICTURES_PUBLIC_BASE_URL);
+
+    if (!process.env.AWS_REGION || !bucket || !publicBaseUrl) {
+        throw httpError(500, "S3 profile picture uploads are not configured");
+    }
+
+    return {
+        bucket,
+        publicBaseUrl,
+        client: new S3Client({
+            region: process.env.AWS_REGION,
+            requestChecksumCalculation: "WHEN_REQUIRED",
+        }),
+    };
+}
+
+function validateProfilePictureUploadPayload(payload) {
+    if (!payload || typeof payload !== "object") {
+        throw httpError(400, "Upload metadata is required");
+    }
+
+    const contentType = String(payload.contentType || "").toLowerCase();
+    const sizeBytes = Number(payload.sizeBytes);
+    const extension = allowedProfilePictureTypes.get(contentType);
+
+    if (!extension) {
+        throw httpError(400, "Profile picture must be a PNG, JPG, or WebP image");
+    }
+
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+        throw httpError(400, "Profile picture size is required");
+    }
+
+    if (sizeBytes > maxProfilePictureSizeBytes) {
+        throw httpError(400, "Profile picture must be 2 MB or smaller");
+    }
+
+    return {
+        contentType,
+        sizeBytes,
+        extension,
+    };
+}
+
+function validateProfilePictureUrl(value) {
+    if (!value) {
+        return null;
+    }
+
+    const profilePictureUrl = String(value).trim();
+    const publicBaseUrl = normalizeUrlBase(process.env.S3_PROFILE_PICTURES_PUBLIC_BASE_URL);
+
+    if (!publicBaseUrl || !profilePictureUrl.startsWith(`${publicBaseUrl}/profile-pictures/`)) {
+        throw httpError(400, "Profile picture URL is not allowed");
+    }
+
+    return profilePictureUrl;
 }
 
 function createPostgresDatabase(config) {
@@ -167,6 +265,11 @@ function createPostgresDatabase(config) {
                 CREATE INDEX IF NOT EXISTS messages_conversation_timestamp_idx
                     ON messages (conversation_id, timestamp);
             `);
+
+            await pool.query(`
+                ALTER TABLE messages
+                ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
+            `);
         },
 
         async saveMessage(message) {
@@ -181,16 +284,18 @@ function createPostgresDatabase(config) {
                         text,
                         sender,
                         timestamp,
-                        profile_picture_index
+                        profile_picture_index,
+                        profile_picture_url
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
                     RETURNING
                         id,
                         conversation_id,
                         text,
                         sender,
                         timestamp,
-                        profile_picture_index
+                        profile_picture_index,
+                        profile_picture_url
                 `,
                 [
                     id,
@@ -199,6 +304,7 @@ function createPostgresDatabase(config) {
                     message.sender,
                     timestamp,
                     message.profilePictureIndex,
+                    message.profilePictureUrl,
                 ]
             );
 
@@ -224,7 +330,8 @@ function createPostgresDatabase(config) {
                         text,
                         sender,
                         timestamp,
-                        profile_picture_index
+                        profile_picture_index,
+                        profile_picture_url
                     FROM messages
                     WHERE conversation_id = $1
                     ${afterClause}
@@ -247,6 +354,7 @@ function mapMessageRow(row) {
         sender: row.sender,
         timestamp: Number(row.timestamp),
         profilePictureIndex: row.profile_picture_index,
+        profilePictureUrl: row.profile_picture_url,
     };
 }
 
@@ -293,6 +401,10 @@ function parseAllowedOrigins(value) {
 
 function normalizeOrigin(origin) {
     return String(origin || "").trim().replace(/\/$/, "");
+}
+
+function normalizeUrlBase(url) {
+    return String(url || "").trim().replace(/\/+$/, "");
 }
 
 function conversationRoom(conversationId) {

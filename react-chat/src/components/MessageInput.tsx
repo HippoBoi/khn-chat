@@ -7,6 +7,7 @@ export function MessageInput() {
   const username = useChatStore((s) => s.username);
   const isConnected = useChatStore((s) => s.isConnected);
   const profilePictureIndex = useChatStore((s) => s.profilePictureIndex);
+  const profilePictureUrl = useChatStore((s) => s.profilePictureUrl);
 
   const handleSend = () => {
     const trimmed = text.trim();
@@ -19,6 +20,7 @@ export function MessageInput() {
       sender: usernameToShow,
       timestamp: Date.now(),
       profilePictureIndex,
+      profilePictureUrl,
     };
 
     socket.emit('message', message);

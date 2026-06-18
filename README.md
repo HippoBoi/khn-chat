@@ -48,5 +48,8 @@ interface Message {
   sender: string;
   timestamp: number;
   profilePictureIndex: number;
+  profilePictureUrl?: string | null;
 }
 ```
+
+this project is a lesson to just use laravel instead
