@@ -15,10 +15,14 @@ function App() {
 
   return (
     <div className="app-container">
-      <Title />
-      <ConnectionStatus />
-      <UsernameForm />
-      <ProfilePicturePicker />
+      <nav className="app-navbar" aria-label="Chat status">
+        <Title />
+        <ConnectionStatus />
+      </nav>
+      <section className="profile-settings" aria-label="Profile settings">
+        <UsernameForm />
+        <ProfilePicturePicker />
+      </section>
       {isChatVisible ? (
         <MessageList />
       ) : (

@@ -16,10 +16,8 @@
   width: 100%;
 }
 
-.app-container > .title-container,
-.app-container > .connection-status,
-.app-container > .form-container,
-.app-container > .profile-picker,
+.app-container > .app-navbar,
+.app-container > .profile-settings,
 .app-container > .message-list,
 .app-container > .message-composer {
   border: 1px solid rgba(123, 139, 176, 0.2);
@@ -28,15 +26,36 @@
   backdrop-filter: blur(18px);
 }
 
-.app-container > .title-container {
+.app-navbar {
+  position: sticky;
+  top: 1rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   border-radius: 24px 24px 14px 14px;
+  padding: 1rem 1.25rem;
 }
 
-.app-container > .form-container,
-.app-container > .profile-picker,
+.profile-settings {
+  display: grid;
+  gap: 1rem;
+  border-radius: 18px;
+  padding: 1rem;
+}
+
+.profile-settings .form-container {
+  border-bottom: 1px solid rgba(123, 139, 176, 0.16);
+  padding-bottom: 1rem;
+}
+
+.profile-settings .profile-picker {
+  padding-top: 0;
+}
+
 .app-container > .message-list,
-.app-container > .message-composer,
-.app-container > .connection-status {
+.app-container > .message-composer {
   border-radius: 18px;
 }
 
@@ -120,7 +139,20 @@ button:disabled {
     padding: 1rem;
   }
 
+  .app-navbar {
+    top: 0.5rem;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+  }
+
   .message-composer {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .app-navbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

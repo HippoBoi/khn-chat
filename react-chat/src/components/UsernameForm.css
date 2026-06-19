@@ -3,7 +3,6 @@
   grid-template-columns: 1fr minmax(180px, 240px) auto;
   align-items: end;
   gap: 0.75rem;
-  padding: 1rem;
 }
 
 .input-container p {
