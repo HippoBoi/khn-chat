@@ -10,15 +10,40 @@ import { useChatStore } from './store/useChatStore';
 import './App.css';
 import { Title } from './components/Title';
 
+type ThemePreference = 'light' | 'dark';
+
+const THEME_STORAGE_KEY = 'chat-theme';
+
+function getInitialTheme(): ThemePreference {
+  const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme;
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 function App() {
   useSocket();
+  const [theme, setTheme] = useState<ThemePreference>(getInitialTheme);
   const isChatVisible = useChatStore((s) => s.isChatVisible);
+  const isDarkMode = theme === 'dark';
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  const handleThemeToggle = () => {
+    setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
+  };
 
   return (
     <div className="app-container">
       <nav className="app-navbar" aria-label="Chat status">
         <Title />
-        <ConnectionStatus />
+        <div className="navbar-actions">
+          <ThemeToggle isDarkMode={isDarkMode} onToggle={handleThemeToggle} />
+          <ConnectionStatus />
+        </div>
       </nav>
       {isChatVisible ? (
         <section className="profile-settings" aria-label="Profile settings">
@@ -29,6 +54,28 @@ function App() {
       {isChatVisible ? <MessageList /> : <ConnectionLoading />}
       <MessageInput />
     </div>
+  );
+}
+
+interface ThemeToggleProps {
+  isDarkMode: boolean;
+  onToggle: () => void;
+}
+
+function ThemeToggle({ isDarkMode, onToggle }: ThemeToggleProps) {
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      onClick={onToggle}
+      aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-pressed={isDarkMode}
+      title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+    >
+      <span className="theme-toggle-track" aria-hidden="true">
+        <span className="theme-toggle-thumb" />
+      </span>
+    </button>
   );
 }
 
