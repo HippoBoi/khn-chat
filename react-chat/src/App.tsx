@@ -19,15 +19,20 @@ function App() {
         <Title />
         <ConnectionStatus />
       </nav>
-      <section className="profile-settings" aria-label="Profile settings">
-        <UsernameForm />
-        <ProfilePicturePicker />
-      </section>
+      {isChatVisible ? (
+        <section className="profile-settings" aria-label="Profile settings">
+          <UsernameForm />
+          <ProfilePicturePicker />
+        </section>
+      ) : null}
       {isChatVisible ? (
         <MessageList />
       ) : (
         <div className="message-list">
-          <p className="connection-message">Connecting to server...</p>
+          <div className="connection-loading">
+            <p className="connection-message">Connecting to server...</p>
+            <span className="connection-spinner" aria-label="Connecting" />
+          </div>
         </div>
       )}
       <MessageInput />
