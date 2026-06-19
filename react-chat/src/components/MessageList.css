@@ -17,6 +17,15 @@
   text-align: center;
 }
 
+.connection-initializing-message {
+  margin: 0.1rem 0 0;
+  color: #64708a;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: center;
+  animation: connection-message-fade-in 300ms ease-out both;
+}
+
 .connection-loading {
   display: flex;
   align-items: center;
@@ -37,6 +46,16 @@
 @keyframes connection-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes connection-message-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
   }
 }
 

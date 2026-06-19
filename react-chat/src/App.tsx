@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useSocket } from './hooks/useSocket';
 import { ConnectionStatus } from './components/ConnectionStatus';
 import { MessageList } from './components/MessageList';
@@ -25,17 +26,34 @@ function App() {
           <ProfilePicturePicker />
         </section>
       ) : null}
-      {isChatVisible ? (
-        <MessageList />
-      ) : (
-        <div className="message-list">
-          <div className="connection-loading">
-            <p className="connection-message">Connecting to server...</p>
-            <span className="connection-spinner" aria-label="Connecting" />
-          </div>
-        </div>
-      )}
+      {isChatVisible ? <MessageList /> : <ConnectionLoading />}
       <MessageInput />
+    </div>
+  );
+}
+
+function ConnectionLoading() {
+  const [showInitializingMessage, setShowInitializingMessage] = useState(false);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setShowInitializingMessage(true);
+    }, 10000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  return (
+    <div className="message-list">
+      <div className="connection-loading">
+        <p className="connection-message">Connecting to server...</p>
+        <span className="connection-spinner" aria-label="Connecting" />
+        {showInitializingMessage ? (
+          <p className="connection-initializing-message">
+            Server initializing, please wait a bit... 🥲
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
