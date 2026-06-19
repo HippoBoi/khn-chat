@@ -65,6 +65,16 @@ input:disabled {
   background: #f3f6fb;
 }
 
+input.message-input-error {
+  border-color: #d93535;
+  background: #fff5f5;
+}
+
+input.message-input-error:focus {
+  border-color: #d93535;
+  box-shadow: 0 0 0 3px rgba(217, 53, 53, 0.14);
+}
+
 button {
   min-height: 46px;
   border: 0;
@@ -96,6 +106,13 @@ button:disabled {
   grid-template-columns: 1fr auto;
   gap: 0.75rem;
   padding: 1rem;
+}
+
+.message-character-error {
+  grid-column: 1 / -1;
+  color: #b42318;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 @media (max-width: 640px) {
