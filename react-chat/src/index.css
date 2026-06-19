@@ -35,14 +35,14 @@
 }
 
 :root[data-theme="dark"] {
-  --color-page: #0c0c0c;
+  --color-page: #080808;
   --color-text: #c9d1dd;
   --color-text-strong: #dfe5ea;
   --color-muted: #94a1b2;
   --color-muted-soft: #768398;
   --color-panel: rgba(12, 5, 13, 0.82);
   --color-panel-solid: #090407;
-  --color-panel-soft: #0b0407;
+  --color-panel-soft: #000000;
   --color-panel-raised: #12080f;
   --color-border: rgba(161, 116, 159, 0.2);
   --color-border-strong: #321926;
