@@ -1,12 +1,12 @@
 
 import './Title.css';
-import reactLogo from '../assets/react.svg';
+import logo from '../assets/icon.svg';
 
 export function Title() {
   return (
     <div className='title-container'>
-      <h1>Testeo Chat</h1>
-      <img src={reactLogo} alt="React" className="react-logo" />
+      <h1>KHN Chat</h1>
+      <img src={logo} alt="React" className="react-logo" />
     </div>
   );
 }

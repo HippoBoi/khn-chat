@@ -2,17 +2,20 @@ import { useState } from 'react';
 import { socket } from '../services/socket';
 import { useChatStore } from '../store/useChatStore';
 
+const MAX_MESSAGE_CHARACTERS = 1000;
+
 export function MessageInput() {
   const [text, setText] = useState('');
   const username = useChatStore((s) => s.username);
   const isConnected = useChatStore((s) => s.isConnected);
   const profilePictureIndex = useChatStore((s) => s.profilePictureIndex);
   const profilePictureUrl = useChatStore((s) => s.profilePictureUrl);
+  const isOverCharacterLimit = text.length > MAX_MESSAGE_CHARACTERS;
 
   const handleSend = () => {
     const trimmed = text.trim();
     const usernameToShow = username || 'unnamed';
-    if (!trimmed || !isConnected) return;
+    if (!trimmed || !isConnected || isOverCharacterLimit) return;
 
     const message = {
       id: crypto.randomUUID(),
@@ -38,12 +41,20 @@ export function MessageInput() {
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
+        className={isOverCharacterLimit ? 'message-input-error' : undefined}
         placeholder="Type a message..."
         disabled={!isConnected}
+        aria-invalid={isOverCharacterLimit}
+        aria-describedby={isOverCharacterLimit ? 'message-character-error' : undefined}
       />
-      <button onClick={handleSend} disabled={!isConnected || !text.trim()}>
+      <button onClick={handleSend} disabled={!isConnected || !text.trim() || isOverCharacterLimit}>
         Send
       </button>
+      {isOverCharacterLimit && (
+        <p id="message-character-error" className="message-character-error">
+          Your message is too long.
+        </p>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
-h1 {
+.title-container h1 {
   margin: 0;
-  color: #172033;
-  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  color: var(--color-text-strong);
+  font-size: clamp(1.45rem, 4vw, 2.2rem);
   line-height: 1.08;
   letter-spacing: 0;
 }
@@ -9,16 +9,23 @@ h1 {
 .title-container {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.85rem;
-  padding: 1.5rem;
-  text-align: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
 }
 
 .react-logo {
-  width: 52px;
-  height: 52px;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
   animation: spin 10s linear infinite;
+}
+
+@media (max-width: 420px) {
+  .react-logo {
+    width: 38px;
+    height: 38px;
+  }
 }
 
 @keyframes spin {

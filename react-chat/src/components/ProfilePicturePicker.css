@@ -3,11 +3,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem;
 }
 
 .profile-picker p {
-  color: #64708a;
+  color: var(--color-muted);
   font-size: 0.9rem;
   font-weight: 700;
 }
@@ -34,15 +33,13 @@
   border: 2px solid transparent;
   cursor: pointer;
   padding: 3px;
-  background: #eef3fb;
-  box-shadow: none;
+  background: var(--color-panel-soft);
   overflow: hidden;
 }
 
 .profile-picker-option.selected {
-  border-color: #6477f2;
-  background: #ffffff;
-  box-shadow: 0 8px 20px rgba(100, 119, 242, 0.24);
+  border-color: var(--color-primary);
+  background: var(--color-panel-solid);
 }
 
 .profile-picker-option img {
@@ -56,7 +53,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #6477f2;
+  color: var(--color-primary-strong);
   font-size: 1.7rem;
   font-weight: 800;
   line-height: 1;
@@ -78,7 +75,7 @@
 .profile-picker .profile-picker-error {
   max-width: 100%;
   margin: 0;
-  color: #d64545;
+  color: var(--color-danger-strong);
   font-size: 0.78rem;
   font-weight: 700;
   text-align: right;
@@ -90,7 +87,6 @@
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(23, 32, 51, 0.12);
 }
 
 @media (max-width: 640px) {

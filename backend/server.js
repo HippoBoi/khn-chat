@@ -15,6 +15,7 @@ const clientUrl = process.env.CLIENT_URL || "*";
 const allowedClientOrigins = parseAllowedOrigins(clientUrl);
 const defaultConversationId = process.env.DEFAULT_CONVERSATION_ID || "public";
 const messageHistoryLimit = Number(process.env.MESSAGE_HISTORY_LIMIT || 100);
+const maxMessageTextLength = 1000;
 const databaseUrl = process.env.DATABASE_URL;
 const maxProfilePictureSizeBytes = 2 * 1024 * 1024;
 const allowedProfilePictureTypes = new Map([
@@ -141,7 +142,7 @@ function validateMessagePayload(payload, conversationId) {
         throw httpError(400, "Message payload is required");
     }
 
-    const text = String(payload.text || "").trim();
+    const text = String(payload.text || "").trim().slice(0, maxMessageTextLength);
     const sender = String(payload.sender || "unnamed").trim();
     const profilePictureIndex = Number(payload.profilePictureIndex || 0);
     const profilePictureUrl = validateProfilePictureUrl(payload.profilePictureUrl);
@@ -150,8 +151,8 @@ function validateMessagePayload(payload, conversationId) {
         throw httpError(400, "Message text is required");
     }
 
-    if (text.length > 2000) {
-        throw httpError(400, "Message text must be 2000 characters or fewer");
+    if (text.length > maxMessageTextLength) {
+        throw httpError(400, "Message text is above limit");
     }
 
     return {
