@@ -49,7 +49,6 @@ export function ProfilePictureCropModal({
 }: ProfilePictureCropModalProps) {
   const editorRef = useRef<AvatarEditorRef>(null);
   const [zoom, setZoom] = useState(1.2);
-  const [rotation, setRotation] = useState(0);
   const [cropError, setCropError] = useState('');
 
   useEffect(() => {
@@ -65,14 +64,6 @@ export function ProfilePictureCropModal({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isUploading, onCancel]);
-
-  const rotateLeft = () => {
-    setRotation((currentRotation) => currentRotation - 90);
-  };
-
-  const rotateRight = () => {
-    setRotation((currentRotation) => currentRotation + 90);
-  };
 
   const handleConfirm = async () => {
     const canvas = editorRef.current?.getImageScaledToCanvas();
@@ -130,7 +121,6 @@ export function ProfilePictureCropModal({
             color={[15, 23, 42, 0.58]}
             borderColor={[255, 255, 255, 0.65]}
             scale={zoom}
-            rotate={rotation}
             showGrid
           />
         </div>
