@@ -245,7 +245,7 @@ button:disabled {
 }
 
 @media (min-width: 768px) {
-  .app-layout {
+  .app-layout--with-video {
     display: grid;
     grid-template-columns: minmax(0, 720px) minmax(180px, 320px);
     align-items: start;
@@ -255,14 +255,14 @@ button:disabled {
     padding: 2rem 1rem;
   }
 
-  .app-container {
+  .app-layout--with-video .app-container {
     min-height: calc(100vh - 4rem);
     width: 100%;
     margin: 0;
     padding: 0;
   }
 
-  .video-panel {
+  .app-layout--with-video .video-panel {
     position: sticky;
     top: 2rem;
     display: grid;

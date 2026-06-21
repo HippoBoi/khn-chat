@@ -13,6 +13,7 @@ import { Title } from './components/Title';
 type ThemePreference = 'light' | 'dark';
 
 const THEME_STORAGE_KEY = 'chat-theme';
+const SUBWAY_TRIGGER = /\bsubway\b/i;
 
 // Paste the Subway Surfers YouTube URL here.
 const SUBWAY_SURFERS_YOUTUBE_URL = 'https://www.youtube.com/watch?v=zZ7AimPACzc';
@@ -52,6 +53,7 @@ function getInitialTheme(): ThemePreference {
 function App() {
   useSocket();
   const [theme, setTheme] = useState<ThemePreference>(getInitialTheme);
+  const [isVideoUnlocked, setIsVideoUnlocked] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const isChatVisible = useChatStore((s) => s.isChatVisible);
   const isDarkMode = theme === 'dark';
@@ -66,8 +68,15 @@ function App() {
     setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
   };
 
+  const handleMessageSent = (messageText: string) => {
+    if (!SUBWAY_TRIGGER.test(messageText)) return;
+
+    setIsVideoUnlocked(true);
+    setIsVideoEnabled(true);
+  };
+
   return (
-    <div className="app-layout">
+    <div className={`app-layout${isVideoUnlocked ? ' app-layout--with-video' : ''}`}>
       <main className="app-container">
         <nav className="app-navbar" aria-label="Chat status">
           <Title />
@@ -83,36 +92,38 @@ function App() {
           </section>
         ) : null}
         {isChatVisible ? <MessageList /> : <ConnectionLoading />}
-        <MessageInput />
+        <MessageInput onMessageSent={handleMessageSent} />
       </main>
 
-      <aside className="video-panel" aria-label="Subway Surfers video">
-        <button
-          type="button"
-          className="video-toggle"
-          onClick={() => setIsVideoEnabled((isEnabled) => !isEnabled)}
-          aria-pressed={isVideoEnabled}
-        >
-          {isVideoEnabled ? 'Hide video' : 'Show video'}
-        </button>
+      {isVideoUnlocked ? (
+        <aside className="video-panel" aria-label="Subway Surfers video">
+          <button
+            type="button"
+            className="video-toggle"
+            onClick={() => setIsVideoEnabled((isEnabled) => !isEnabled)}
+            aria-pressed={isVideoEnabled}
+          >
+            {isVideoEnabled ? 'Hide video' : 'Show video'}
+          </button>
 
-        {isVideoEnabled ? (
-          youtubeVideoId ? (
-            <iframe
-              className="video-player"
-              src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=1&mute=1&loop=1&playlist=${youtubeVideoId}&playsinline=1&rel=0`}
-              title="Subway Surfers gameplay"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              referrerPolicy="strict-origin-when-cross-origin"
-              allowFullScreen
-            />
-          ) : (
-            <p className="video-placeholder">
-              Add a YouTube URL in <code>SUBWAY_SURFERS_YOUTUBE_URL</code>.
-            </p>
-          )
-        ) : null}
-      </aside>
+          {isVideoEnabled ? (
+            youtubeVideoId ? (
+              <iframe
+                className="video-player"
+                src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=1&mute=1&loop=1&playlist=${youtubeVideoId}&playsinline=1&rel=0`}
+                title="Subway Surfers gameplay"
+                allow="autoplay; encrypted-media; picture-in-picture"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            ) : (
+              <p className="video-placeholder">
+                Add a YouTube URL in <code>SUBWAY_SURFERS_YOUTUBE_URL</code>.
+              </p>
+            )
+          ) : null}
+        </aside>
+      ) : null}
     </div>
   );
 }
