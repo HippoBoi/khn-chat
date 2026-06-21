@@ -4,11 +4,7 @@ import { useChatStore } from '../store/useChatStore';
 
 const MAX_MESSAGE_CHARACTERS = 1000;
 
-interface MessageInputProps {
-  onMessageSent?: (messageText: string) => void;
-}
-
-export function MessageInput({ onMessageSent }: MessageInputProps) {
+export function MessageInput() {
   const [text, setText] = useState('');
   const userId = useChatStore((s) => s.userId);
   const username = useChatStore((s) => s.username);
@@ -33,7 +29,6 @@ export function MessageInput({ onMessageSent }: MessageInputProps) {
     };
 
     socket.emit('message', message);
-    onMessageSent?.(trimmed);
     setText('');
   };
 

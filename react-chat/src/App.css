@@ -247,10 +247,10 @@ button:disabled {
 @media (min-width: 768px) {
   .app-layout--with-video {
     display: grid;
-    grid-template-columns: minmax(0, 720px) minmax(180px, 320px);
+    grid-template-columns: minmax(0, 720px) minmax(240px, 420px);
     align-items: start;
     gap: 1.5rem;
-    width: min(100%, 1104px);
+    width: min(100%, 1200px);
     margin: 0 auto;
     padding: 2rem 1rem;
   }
@@ -265,38 +265,48 @@ button:disabled {
   .app-layout--with-video .video-panel {
     position: sticky;
     top: 2rem;
-    display: grid;
-    gap: 0.75rem;
+    display: block;
     width: 100%;
   }
 
-  .video-toggle {
+  .video-frame {
+    position: relative;
     width: 100%;
-    border: 1px solid var(--color-border);
-    background: var(--color-primary-strong);
-    box-shadow: var(--shadow-card);
+    aspect-ratio: 16 / 9;
   }
 
-  .video-player,
-  .video-placeholder {
+  .video-player {
+    display: block;
     width: 100%;
-    aspect-ratio: 9 / 16;
+    height: 100%;
     border: 1px solid var(--color-border);
     border-radius: 18px;
     background: var(--color-panel-solid);
     box-shadow: var(--shadow-panel);
   }
 
-  .video-player {
-    display: block;
+  .video-close {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.55rem;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 50%;
+    padding: 0;
+    color: #ffffff;
+    font-size: 1.35rem;
+    line-height: 1;
+    background: rgba(15, 23, 42, 0.82);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.24);
   }
 
-  .video-placeholder {
-    display: grid;
-    place-items: center;
-    margin: 0;
-    padding: 1rem;
-    color: var(--color-muted);
-    text-align: center;
+  .video-close:hover:not(:disabled) {
+    background: rgba(15, 23, 42, 0.96);
   }
 }

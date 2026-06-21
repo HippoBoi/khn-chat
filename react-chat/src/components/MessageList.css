@@ -127,3 +127,15 @@
   max-width: 100%;
   overflow-wrap: anywhere;
 }
+
+.message-link {
+  color: var(--color-primary-strong);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.message-link:hover {
+  color: var(--color-primary);
+}
