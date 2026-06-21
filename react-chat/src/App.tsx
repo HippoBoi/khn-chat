@@ -14,6 +14,34 @@ type ThemePreference = 'light' | 'dark';
 
 const THEME_STORAGE_KEY = 'chat-theme';
 
+// Paste the Subway Surfers YouTube URL here.
+const SUBWAY_SURFERS_YOUTUBE_URL = 'https://www.youtube.com/watch?v=zZ7AimPACzc';
+
+function getYouTubeVideoId(url: string): string | null {
+  if (!url.trim()) return null;
+
+  try {
+    const parsedUrl = new URL(url);
+
+    if (parsedUrl.hostname === 'youtu.be') {
+      return parsedUrl.pathname.slice(1).split('/')[0] || null;
+    }
+
+    if (parsedUrl.hostname.endsWith('youtube.com')) {
+      if (parsedUrl.pathname === '/watch') {
+        return parsedUrl.searchParams.get('v');
+      }
+
+      const [, route, videoId] = parsedUrl.pathname.split('/');
+      if (route === 'embed' || route === 'shorts') return videoId || null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 function getInitialTheme(): ThemePreference {
   const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
   if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme;
@@ -24,8 +52,10 @@ function getInitialTheme(): ThemePreference {
 function App() {
   useSocket();
   const [theme, setTheme] = useState<ThemePreference>(getInitialTheme);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const isChatVisible = useChatStore((s) => s.isChatVisible);
   const isDarkMode = theme === 'dark';
+  const youtubeVideoId = getYouTubeVideoId(SUBWAY_SURFERS_YOUTUBE_URL);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -37,22 +67,52 @@ function App() {
   };
 
   return (
-    <div className="app-container">
-      <nav className="app-navbar" aria-label="Chat status">
-        <Title />
-        <div className="navbar-actions">
-          <ThemeToggle isDarkMode={isDarkMode} onToggle={handleThemeToggle} />
-          <ConnectionStatus />
-        </div>
-      </nav>
-      {isChatVisible ? (
-        <section className="profile-settings" aria-label="Profile settings">
-          <UsernameForm />
-          <ProfilePicturePicker />
-        </section>
-      ) : null}
-      {isChatVisible ? <MessageList /> : <ConnectionLoading />}
-      <MessageInput />
+    <div className="app-layout">
+      <main className="app-container">
+        <nav className="app-navbar" aria-label="Chat status">
+          <Title />
+          <div className="navbar-actions">
+            <ThemeToggle isDarkMode={isDarkMode} onToggle={handleThemeToggle} />
+            <ConnectionStatus />
+          </div>
+        </nav>
+        {isChatVisible ? (
+          <section className="profile-settings" aria-label="Profile settings">
+            <UsernameForm />
+            <ProfilePicturePicker />
+          </section>
+        ) : null}
+        {isChatVisible ? <MessageList /> : <ConnectionLoading />}
+        <MessageInput />
+      </main>
+
+      <aside className="video-panel" aria-label="Subway Surfers video">
+        <button
+          type="button"
+          className="video-toggle"
+          onClick={() => setIsVideoEnabled((isEnabled) => !isEnabled)}
+          aria-pressed={isVideoEnabled}
+        >
+          {isVideoEnabled ? 'Hide video' : 'Show video'}
+        </button>
+
+        {isVideoEnabled ? (
+          youtubeVideoId ? (
+            <iframe
+              className="video-player"
+              src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=1&mute=1&loop=1&playlist=${youtubeVideoId}&playsinline=1&rel=0`}
+              title="Subway Surfers gameplay"
+              allow="autoplay; encrypted-media; picture-in-picture"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+          ) : (
+            <p className="video-placeholder">
+              Add a YouTube URL in <code>SUBWAY_SURFERS_YOUTUBE_URL</code>.
+            </p>
+          )
+        ) : null}
+      </aside>
     </div>
   );
 }
