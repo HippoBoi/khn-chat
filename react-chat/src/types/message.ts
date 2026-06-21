@@ -3,6 +3,7 @@ export interface Message {
   text: string;
   sender: string;
   timestamp: number;
+  userId?: string | null;
   profilePictureIndex: number;
   profilePictureUrl?: string | null;
 }

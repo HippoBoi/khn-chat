@@ -17,6 +17,7 @@ const defaultConversationId = process.env.DEFAULT_CONVERSATION_ID || "public";
 const messageHistoryLimit = Number(process.env.MESSAGE_HISTORY_LIMIT || 100);
 const maxMessageTextLength = 1000;
 const databaseUrl = process.env.DATABASE_URL;
+const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const maxProfilePictureSizeBytes = 2 * 1024 * 1024;
 const allowedProfilePictureTypes = new Map([
     ["image/png", "png"],
@@ -144,6 +145,7 @@ function validateMessagePayload(payload, conversationId) {
 
     const text = String(payload.text || "").trim().slice(0, maxMessageTextLength);
     const sender = String(payload.sender || "unnamed").trim();
+    const userId = validateUserId(payload.userId);
     const profilePictureIndex = Number(payload.profilePictureIndex || 0);
     const profilePictureUrl = validateProfilePictureUrl(payload.profilePictureUrl);
 
@@ -159,9 +161,24 @@ function validateMessagePayload(payload, conversationId) {
         conversationId: String(conversationId || defaultConversationId),
         text,
         sender: sender || "unnamed",
+        userId,
         profilePictureIndex: Number.isFinite(profilePictureIndex) ? profilePictureIndex : 0,
         profilePictureUrl,
     };
+}
+
+function validateUserId(value) {
+    if (value === undefined || value === null || value === "") {
+        return null;
+    }
+
+    const userId = String(value).trim();
+
+    if (!userIdPattern.test(userId)) {
+        throw httpError(400, "User ID must be a valid UUID");
+    }
+
+    return userId;
 }
 
 async function createProfilePictureUpload(payload) {
@@ -270,6 +287,9 @@ function createPostgresDatabase(config) {
             await pool.query(`
                 ALTER TABLE messages
                 ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
+
+                ALTER TABLE messages
+                ADD COLUMN IF NOT EXISTS user_id UUID;
             `);
         },
 
@@ -284,16 +304,18 @@ function createPostgresDatabase(config) {
                         conversation_id,
                         text,
                         sender,
+                        user_id,
                         timestamp,
                         profile_picture_index,
                         profile_picture_url
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     RETURNING
                         id,
                         conversation_id,
                         text,
                         sender,
+                        user_id,
                         timestamp,
                         profile_picture_index,
                         profile_picture_url
@@ -303,6 +325,7 @@ function createPostgresDatabase(config) {
                     message.conversationId,
                     message.text,
                     message.sender,
+                    message.userId,
                     timestamp,
                     message.profilePictureIndex,
                     message.profilePictureUrl,
@@ -330,6 +353,7 @@ function createPostgresDatabase(config) {
                         conversation_id,
                         text,
                         sender,
+                        user_id,
                         timestamp,
                         profile_picture_index,
                         profile_picture_url
@@ -353,6 +377,7 @@ function mapMessageRow(row) {
         conversationId: row.conversation_id,
         text: row.text,
         sender: row.sender,
+        userId: row.user_id,
         timestamp: Number(row.timestamp),
         profilePictureIndex: row.profile_picture_index,
         profilePictureUrl: row.profile_picture_url,

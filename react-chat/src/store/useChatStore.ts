@@ -6,6 +6,7 @@ interface ChatState {
   messages: Message[];
   isConnected: boolean;
   isChatVisible: boolean;
+  userId: string;
   username: string;
   profilePictureIndex: number;
   profilePictureUrl: string | null;
@@ -26,6 +27,7 @@ export const useChatStore = create<ChatState>()(
       messages: [],
       isConnected: false,
       isChatVisible: false,
+      userId: crypto.randomUUID(),
       username: '',
       profilePictureIndex: 0,
       profilePictureUrl: null,
@@ -47,7 +49,20 @@ export const useChatStore = create<ChatState>()(
     }),
     {
       name: 'chat-profile',
+      version: 1,
+      migrate: (persistedState) => {
+        const state = persistedState as Partial<ChatState>;
+
+        return {
+          userId: state.userId ?? crypto.randomUUID(),
+          username: state.username ?? '',
+          profilePictureIndex: state.profilePictureIndex ?? 0,
+          profilePictureUrl: state.profilePictureUrl ?? null,
+          uploadedProfilePictureUrl: state.uploadedProfilePictureUrl ?? null,
+        };
+      },
       partialize: (state) => ({
+        userId: state.userId,
         username: state.username,
         profilePictureIndex: state.profilePictureIndex,
         profilePictureUrl: state.profilePictureUrl,

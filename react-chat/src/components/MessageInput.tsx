@@ -6,6 +6,7 @@ const MAX_MESSAGE_CHARACTERS = 1000;
 
 export function MessageInput() {
   const [text, setText] = useState('');
+  const userId = useChatStore((s) => s.userId);
   const username = useChatStore((s) => s.username);
   const isConnected = useChatStore((s) => s.isConnected);
   const profilePictureIndex = useChatStore((s) => s.profilePictureIndex);
@@ -22,6 +23,7 @@ export function MessageInput() {
       text: trimmed,
       sender: usernameToShow,
       timestamp: Date.now(),
+      userId,
       profilePictureIndex,
       profilePictureUrl,
     };
