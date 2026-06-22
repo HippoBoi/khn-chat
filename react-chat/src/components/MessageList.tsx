@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useChatStore } from '../store/useChatStore';
 import { PROFILE_PICTURES } from '../constants/profilePictures';
 import type { Message } from '../types/message';
@@ -175,23 +175,27 @@ function MessageTimestamp({ timestamp }: { timestamp: number }) {
 export function MessageList({ onYouTubeVideoSelect }: MessageListProps) {
   const messages = useChatStore((s) => s.messages);
   const setMessages = useChatStore((s) => s.setMessages);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
+  const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
 
   useEffect(() => {
     const fetchMessages = async () => {
       const response = await api.get<MessagesResponse>('/messages');
       setMessages(response.data.messages);
+      setHasLoadedHistory(true);
     };
 
     fetchMessages();
   }, [setMessages]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  useLayoutEffect(() => {
+    if (!hasLoadedHistory || !messageListRef.current) return;
+
+    messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+  }, [hasLoadedHistory]);
 
   return (
-    <div className="message-list">
+    <div ref={messageListRef} className="message-list">
       {messages.map((msg: Message) => (
         <div key={msg.id} className="message-item">
           <img
@@ -211,7 +215,6 @@ export function MessageList({ onYouTubeVideoSelect }: MessageListProps) {
           </div>
         </div>
       ))}
-      <div ref={bottomRef} />
     </div>
   );
 }
