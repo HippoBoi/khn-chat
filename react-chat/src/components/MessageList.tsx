@@ -26,10 +26,6 @@ interface TrimmedUrl {
   trailingText: string;
 }
 
-function isDownloadUrl(url: string): boolean {
-  return /download|[?&](dl|raw)=/i.test(url);
-}
-
 function trimUrlPunctuation(candidate: string): TrimmedUrl {
   let url = candidate;
   let trailingText = '';
@@ -100,7 +96,7 @@ function MessageText({
   return (
     <p className="message-text">
       {splitMessageLinks(text).map((part, index) =>
-        part.url && !isDownloadUrl(part.url) ? (
+        part.url ? (
           <a
             key={`${index}-${part.url}`}
             className="message-link"
