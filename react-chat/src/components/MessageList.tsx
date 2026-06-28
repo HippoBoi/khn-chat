@@ -26,6 +26,15 @@ interface TrimmedUrl {
   trailingText: string;
 }
 
+const BOTTOM_SCROLL_THRESHOLD_PX = 8;
+
+function isScrolledToBottom(element: HTMLElement) {
+  return (
+    element.scrollHeight - element.scrollTop - element.clientHeight <=
+    BOTTOM_SCROLL_THRESHOLD_PX
+  );
+}
+
 function trimUrlPunctuation(candidate: string): TrimmedUrl {
   let url = candidate;
   let trailingText = '';
@@ -176,6 +185,8 @@ export function MessageList({ onYouTubeVideoSelect }: MessageListProps) {
   const messages = useChatStore((s) => s.messages);
   const setMessages = useChatStore((s) => s.setMessages);
   const messageListRef = useRef<HTMLDivElement>(null);
+  const hasSnappedToHistoryRef = useRef(false);
+  const isSnappedToBottomRef = useRef(true);
   const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
 
   useEffect(() => {
@@ -191,14 +202,30 @@ export function MessageList({ onYouTubeVideoSelect }: MessageListProps) {
   useLayoutEffect(() => {
     if (!hasLoadedHistory || !messageListRef.current) return;
 
+    if (!hasSnappedToHistoryRef.current) {
+      messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+      hasSnappedToHistoryRef.current = true;
+      isSnappedToBottomRef.current = true;
+      return;
+    }
+
+    if (!isSnappedToBottomRef.current) return;
+
     messageListRef.current.scrollTo({
       top: messageListRef.current.scrollHeight,
       behavior: 'smooth',
     });
+    isSnappedToBottomRef.current = true;
   }, [hasLoadedHistory, messages.length]);
 
+  const handleScroll = () => {
+    if (!messageListRef.current) return;
+
+    isSnappedToBottomRef.current = isScrolledToBottom(messageListRef.current);
+  };
+
   return (
-    <div ref={messageListRef} className="message-list">
+    <div ref={messageListRef} className="message-list" onScroll={handleScroll}>
       {messages.map((msg: Message) => (
         <div key={msg.id} className="message-item">
           <img
