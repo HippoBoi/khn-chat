@@ -191,8 +191,11 @@ export function MessageList({ onYouTubeVideoSelect }: MessageListProps) {
   useLayoutEffect(() => {
     if (!hasLoadedHistory || !messageListRef.current) return;
 
-    messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
-  }, [hasLoadedHistory]);
+    messageListRef.current.scrollTo({
+      top: messageListRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, [hasLoadedHistory, messages.length]);
 
   return (
     <div ref={messageListRef} className="message-list">
