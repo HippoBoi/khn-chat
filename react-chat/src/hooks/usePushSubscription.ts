@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getToken } from 'firebase/messaging';
+import { getToken, onMessage } from 'firebase/messaging';
 import api from '../services/api';
 import { getFirebaseMessaging } from '../services/firebase';
 import { useChatStore } from '../store/useChatStore';
+import { useNotificationStore } from '../store/useNotificationStore';
 
 const DEFAULT_CONVERSATION_ID = 'public';
 const PUSH_ENABLED_KEY = 'chat-push-notifications-enabled';
@@ -129,6 +130,34 @@ export function usePushSubscription() {
 
     subscribe();
   }, [isSupported, isConnected, userId, isEnabled, subscribe]);
+
+  useEffect(() => {
+    if (!isSupported) return;
+
+    const addToast = useNotificationStore.getState().addToast;
+
+    let unsubscribe: (() => void) | undefined;
+
+    getFirebaseMessaging().then((messaging) => {
+      if (!messaging) return;
+
+      unsubscribe = onMessage(messaging, (payload) => {
+        const notification = payload.notification;
+        if (!notification) return;
+
+        addToast({
+          type: 'message',
+          title: notification.title ?? 'KHN Chat',
+          body: notification.body ?? '',
+          sender: notification.title ?? undefined,
+        });
+      });
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, [isSupported]);
 
   return {
     isSupported,
