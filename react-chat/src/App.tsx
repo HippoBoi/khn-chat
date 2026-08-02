@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useSocket } from './hooks/useSocket';
+import { useNotification } from './hooks/useNotification';
 import { ConnectionStatus } from './components/ConnectionStatus';
 import { MessageList } from './components/MessageList';
 import { MessageInput } from './components/MessageInput';
+import { NotificationToast } from './components/NotificationToast';
+import { NotificationInbox } from './components/NotificationInbox';
 import { UsernameForm } from './components/UsernameForm';
 import { ProfilePicturePicker } from './components/ProfilePicturePicker';
 import { useChatStore } from './store/useChatStore';
@@ -24,6 +27,7 @@ function getInitialTheme(): ThemePreference {
 
 function App() {
   useSocket();
+  useNotification();
   const [theme, setTheme] = useState<ThemePreference>(getInitialTheme);
   const [selectedYouTubeVideoId, setSelectedYouTubeVideoId] = useState<string | null>(null);
   const isChatVisible = useChatStore((s) => s.isChatVisible);
@@ -56,6 +60,7 @@ function App() {
         <nav className="app-navbar" aria-label="Chat status">
           <Title />
           <div className="navbar-actions">
+            <NotificationInbox />
             <ThemeToggle isDarkMode={isDarkMode} onToggle={handleThemeToggle} />
             <ConnectionStatus />
           </div>
@@ -98,6 +103,7 @@ function App() {
           </div>
         </aside>
       ) : null}
+      <NotificationToast />
     </div>
   );
 }
