@@ -213,7 +213,7 @@ export function MessageInput() {
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
           className={isOverCharacterLimit ? 'message-input-error' : undefined}
-          placeholder="Type a message... (use @ to ping a user)"
+          placeholder="..."
           disabled={!isConnected}
           aria-invalid={isOverCharacterLimit}
           aria-describedby={isOverCharacterLimit ? 'message-character-error' : undefined}
