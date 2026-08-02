@@ -15,7 +15,10 @@ export interface ToastNotification {
 
 interface NotificationsResponse {
   notifications: Notification[];
+  unreadCount: number;
 }
+
+type ReadStatePayload = { all?: boolean; id?: string };
 
 interface NotificationState {
   toasts: ToastNotification[];
@@ -29,6 +32,7 @@ interface NotificationState {
   addNotification: (notification: Notification) => void;
   fetchNotifications: () => Promise<void>;
   markAllRead: () => Promise<void>;
+  setReadState: (payload: ReadStatePayload) => void;
   setUnreadCount: (count: number) => void;
   setSoundEnabled: (enabled: boolean) => void;
 }
@@ -70,11 +74,11 @@ export const useNotificationStore = create<NotificationState>()((set) => ({
       const response = await api.get<NotificationsResponse>('/notifications', {
         params: { userId, limit: 50 },
       });
-      const notifications = response.data.notifications;
+      const { notifications, unreadCount } = response.data;
 
       set({
         notifications,
-        unreadCount: notifications.filter((notification) => !notification.isRead).length,
+        unreadCount,
         hasLoadedNotifications: true,
       });
     } catch {
@@ -98,6 +102,34 @@ export const useNotificationStore = create<NotificationState>()((set) => ({
       // Ignore mark-all-read errors.
     }
   },
+  setReadState: ({ all, id }) =>
+    set((state) => {
+      if (all) {
+        return {
+          unreadCount: 0,
+          notifications: state.notifications.map((notification) => ({
+            ...notification,
+            isRead: true,
+          })),
+        };
+      }
+
+      if (!id) return state;
+
+      let decremented = false;
+      const notifications = state.notifications.map((notification) => {
+        if (notification.id === id && !notification.isRead) {
+          decremented = true;
+          return { ...notification, isRead: true };
+        }
+        return notification;
+      });
+
+      return {
+        notifications,
+        unreadCount: decremented ? Math.max(0, state.unreadCount - 1) : state.unreadCount,
+      };
+    }),
   setUnreadCount: (count) => set({ unreadCount: count }),
   setSoundEnabled: (enabled) => set({ isSoundEnabled: enabled }),
 }));

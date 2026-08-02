@@ -6,4 +6,5 @@ export interface Message {
   userId?: string | null;
   profilePictureIndex: number;
   profilePictureUrl?: string | null;
+  pingedUserIds?: string[];
 }

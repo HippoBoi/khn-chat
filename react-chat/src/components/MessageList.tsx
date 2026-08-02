@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useChatStore } from '../store/useChatStore';
 import { PROFILE_PICTURES } from '../constants/profilePictures';
+import { getUserIdLabel } from '../utils/userIdLabel';
 import type { Message } from '../types/message';
 import './MessageList.css';
 import api from '../services/api';
@@ -89,9 +90,11 @@ function splitMessageLinks(text: string): LinkifiedPart[] {
 
 function MessageText({
   text,
+  pingLabels,
   onYouTubeVideoSelect,
 }: {
   text: string;
+  pingLabels?: string[];
   onYouTubeVideoSelect: (videoId: string) => void;
 }) {
   const handleLinkClick = (event: React.MouseEvent<HTMLAnchorElement>, url: string) => {
@@ -104,24 +107,59 @@ function MessageText({
 
   return (
     <p className="message-text">
-      {splitMessageLinks(text).map((part, index) =>
-        part.url ? (
-          <a
-            key={`${index}-${part.url}`}
-            className="message-link"
-            href={part.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(event) => handleLinkClick(event, part.url!)}
-          >
-            {part.text}
-          </a>
-        ) : (
-          part.text
-        ),
-      )}
+      {splitMessageLinks(text).map((part, index) => {
+        if (part.url) {
+          return (
+            <a
+              key={`${index}-${part.url}`}
+              className="message-link"
+              href={part.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => handleLinkClick(event, part.url!)}
+            >
+              {part.text}
+            </a>
+          );
+        }
+
+        return <MentionText key={`${index}-${part.text}`} text={part.text} pingLabels={pingLabels} />;
+      })}
     </p>
   );
+}
+
+function MentionText({
+  text,
+  pingLabels,
+}: {
+  text: string;
+  pingLabels?: string[];
+}) {
+  if (!pingLabels || pingLabels.length === 0) {
+    return <>{text}</>;
+  }
+
+  const pattern = new RegExp(`(@(?:${pingLabels.map(escapeRegExp).join('|')}))`, 'i');
+  const parts = text.split(pattern);
+
+  return (
+    <>
+      {parts.map((part, index) =>
+        pattern.test(part) ? (
+          <span key={index} className="message-ping">
+            {part}
+          </span>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function getProfilePictureSrc(message: Message) {
@@ -132,7 +170,10 @@ function getProfilePictureSrc(message: Message) {
   return PROFILE_PICTURES[message.profilePictureIndex] ?? PROFILE_PICTURES[0];
 }
 
-const USER_ID_BADGE_COLOR_COUNT = 6;
+function getMessagePingLabels(message: Message): string[] {
+  return (message.pingedUserIds ?? []).map((userId) => getUserIdLabel(userId).label);
+}
+
 const MESSAGE_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
   hour: 'numeric',
   minute: '2-digit',
@@ -145,13 +186,7 @@ function UserIdBadge({ userId }: { userId?: string | null }) {
     return null;
   }
 
-  const compactUserId = userId.replaceAll('-', '');
-  const userIdHash = [...compactUserId].reduce(
-    (hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0,
-    0,
-  );
-  const colorIndex = userIdHash % USER_ID_BADGE_COLOR_COUNT;
-  const label = userIdHash.toString(36).toUpperCase().padStart(6, '0').slice(-6);
+  const { label, colorIndex } = getUserIdLabel(userId);
 
   return (
     <span
@@ -184,7 +219,7 @@ function MessageTimestamp({ timestamp }: { timestamp: number }) {
 export function MessageList({ onYouTubeVideoSelect }: MessageListProps) {
   const messages = useChatStore((s) => s.messages);
   const setMessages = useChatStore((s) => s.setMessages);
-  const messageListRef = useRef<HTMLDivElement>(null);
+const messageListRef = useRef<HTMLDivElement>(null);
   const hasSnappedToHistoryRef = useRef(false);
   const isSnappedToBottomRef = useRef(true);
   const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
@@ -241,7 +276,11 @@ export function MessageList({ onYouTubeVideoSelect }: MessageListProps) {
                 <MessageTimestamp timestamp={msg.timestamp} />
               </span>
             </div>
-            <MessageText text={msg.text} onYouTubeVideoSelect={onYouTubeVideoSelect} />
+            <MessageText
+              text={msg.text}
+              pingLabels={getMessagePingLabels(msg)}
+              onYouTubeVideoSelect={onYouTubeVideoSelect}
+            />
           </div>
         </div>
       ))}
