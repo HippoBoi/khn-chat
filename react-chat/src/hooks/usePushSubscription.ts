@@ -1,43 +1,57 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getToken } from 'firebase/messaging';
 import api from '../services/api';
 import { getFirebaseMessaging } from '../services/firebase';
 import { useChatStore } from '../store/useChatStore';
 
 const DEFAULT_CONVERSATION_ID = 'public';
+const PUSH_ENABLED_KEY = 'chat-push-notifications-enabled';
+
+function getIsPushSupported(): boolean {
+  return 'serviceWorker' in navigator && 'PushManager' in window;
+}
+
+function getPushEnabled(): boolean {
+  const stored = window.localStorage.getItem(PUSH_ENABLED_KEY);
+  if (stored === null) return true;
+  return stored !== 'false';
+}
 
 export function usePushSubscription() {
   const userId = useChatStore((s) => s.userId);
-  const [isSupported, setIsSupported] = useState(false);
+  const isConnected = useChatStore((s) => s.isConnected);
+  const [isSupported] = useState(getIsPushSupported);
+  const [isEnabled, setIsEnabled] = useState(getPushEnabled);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    setIsSupported(true);
-  }, []);
+    if (!isSupported) return;
+
+    navigator.serviceWorker
+      .register('/firebase-messaging-sw.js')
+      .catch(() => {
+        // Service worker registration failed; push notifications unavailable.
+      });
+  }, [isSupported]);
 
   useEffect(() => {
     if (!isSupported) return;
 
-    const initialize = async () => {
+    const syncStatus = async () => {
       try {
-        await navigator.serviceWorker.register('/firebase-messaging-sw.js');
         const registration = await navigator.serviceWorker.ready;
-        const existingSubscription = await registration.pushManager.getSubscription();
-
-        if (existingSubscription && Notification.permission === 'granted') {
-          setIsSubscribed(true);
-        }
+        const existing = await registration.pushManager.getSubscription();
+        setIsSubscribed(!!existing);
       } catch {
-        // Service worker registration failed; push notifications unavailable.
+        setIsSubscribed(false);
       }
     };
 
-    initialize();
+    syncStatus();
   }, [isSupported]);
 
-  const subscribe = async (): Promise<boolean> => {
+  const subscribe = useCallback(async (): Promise<boolean> => {
     if (!isSupported) return false;
 
     setIsSubscribing(true);
@@ -65,9 +79,9 @@ export function usePushSubscription() {
     } finally {
       setIsSubscribing(false);
     }
-  };
+  }, [isSupported, userId]);
 
-  const unsubscribe = async () => {
+  const unsubscribe = useCallback(async () => {
     if (!isSupported) return;
 
     try {
@@ -85,16 +99,44 @@ export function usePushSubscription() {
         }
       }
 
-      const existingSubscription = await registration.pushManager.getSubscription();
-      if (existingSubscription) {
-        await existingSubscription.unsubscribe();
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        await existing.unsubscribe();
       }
 
       setIsSubscribed(false);
     } catch {
-      // Unsubscribe failed; state may be stale.
+      // Unsubscribe failed; push state may be stale.
     }
-  };
+  }, [isSupported, userId]);
 
-  return { isSupported, isSubscribed, isSubscribing, subscribe, unsubscribe };
+  const toggle = useCallback(async () => {
+    if (isEnabled) {
+      await unsubscribe();
+    } else {
+      await subscribe();
+    }
+    setIsEnabled((current) => {
+      const next = !current;
+      window.localStorage.setItem(PUSH_ENABLED_KEY, String(next));
+      return next;
+    });
+  }, [isEnabled, subscribe, unsubscribe]);
+
+  useEffect(() => {
+    if (!isSupported || !isConnected || !userId || !isEnabled) return;
+    if (Notification.permission !== 'default' && Notification.permission !== 'granted') return;
+
+    subscribe();
+  }, [isSupported, isConnected, userId, isEnabled, subscribe]);
+
+  return {
+    isSupported,
+    isEnabled,
+    isSubscribed,
+    isSubscribing,
+    subscribe,
+    unsubscribe,
+    toggle,
+  };
 }

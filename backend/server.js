@@ -19,6 +19,7 @@ const defaultConversationId = process.env.DEFAULT_CONVERSATION_ID || "public";
 const messageHistoryLimit = Number(process.env.MESSAGE_HISTORY_LIMIT || 100);
 const notificationHistoryLimit = Number(process.env.NOTIFICATION_HISTORY_LIMIT || 100);
 const maxMessageTextLength = 1000;
+const maxPingedUsers = 20;
 const databaseUrl = process.env.DATABASE_URL;
 const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const maxProfilePictureSizeBytes = 2 * 1024 * 1024;
@@ -244,10 +245,11 @@ async function saveIncomingMessage(payload, conversationId) {
 }
 
 async function notifyRecipients(message) {
-    const recipientUserIds = await database.getNotificationRecipientUserIds(
-        message.conversationId,
-        message.userId
-    );
+    const recipientUserIds = message.pingedUserIds || [];
+
+    if (recipientUserIds.length === 0) {
+        return;
+    }
 
     for (const userId of recipientUserIds) {
         const notification = await database.saveNotification({
@@ -260,6 +262,7 @@ async function notifyRecipients(message) {
                 messageId: message.id,
                 profilePictureUrl: message.profilePictureUrl || null,
                 profilePictureIndex: message.profilePictureIndex,
+                pingedUserIds: recipientUserIds,
             },
         });
 
@@ -319,6 +322,7 @@ function validateMessagePayload(payload, conversationId) {
     const userId = validateUserId(payload.userId);
     const profilePictureIndex = Number(payload.profilePictureIndex || 0);
     const profilePictureUrl = validateProfilePictureUrl(payload.profilePictureUrl);
+    const pingedUserIds = validatePingedUserIds(payload.pingedUserIds, userId);
 
     if (!text) {
         throw httpError(400, "Message text is required");
@@ -335,6 +339,7 @@ function validateMessagePayload(payload, conversationId) {
         userId,
         profilePictureIndex: Number.isFinite(profilePictureIndex) ? profilePictureIndex : 0,
         profilePictureUrl,
+        pingedUserIds,
     };
 }
 
@@ -350,6 +355,36 @@ function validateUserId(value) {
     }
 
     return userId;
+}
+
+function validatePingedUserIds(value, excludeUserId) {
+    if (value === undefined || value === null) {
+        return [];
+    }
+
+    if (!Array.isArray(value)) {
+        throw httpError(400, "pingedUserIds must be an array");
+    }
+
+    const seen = new Set();
+    const pingedUserIds = [];
+
+    for (const rawValue of value) {
+        if (pingedUserIds.length >= maxPingedUsers) {
+            break;
+        }
+
+        const pingedUserId = validateUserId(rawValue);
+
+        if (!pingedUserId || pingedUserId === excludeUserId || seen.has(pingedUserId)) {
+            continue;
+        }
+
+        seen.add(pingedUserId);
+        pingedUserIds.push(pingedUserId);
+    }
+
+    return pingedUserIds;
 }
 
 function validatePushToken(value) {
@@ -475,6 +510,9 @@ function createPostgresDatabase(config) {
 
                 ALTER TABLE messages
                 ADD COLUMN IF NOT EXISTS user_id UUID;
+
+                ALTER TABLE messages
+                ADD COLUMN IF NOT EXISTS pinged_user_ids JSONB;
             `);
 
             await pool.query(`
@@ -523,9 +561,10 @@ function createPostgresDatabase(config) {
                         user_id,
                         timestamp,
                         profile_picture_index,
-                        profile_picture_url
+                        profile_picture_url,
+                        pinged_user_ids
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                     RETURNING
                         id,
                         conversation_id,
@@ -534,7 +573,8 @@ function createPostgresDatabase(config) {
                         user_id,
                         timestamp,
                         profile_picture_index,
-                        profile_picture_url
+                        profile_picture_url,
+                        pinged_user_ids
                 `,
                 [
                     id,
@@ -545,6 +585,7 @@ function createPostgresDatabase(config) {
                     timestamp,
                     message.profilePictureIndex,
                     message.profilePictureUrl,
+                    JSON.stringify(message.pingedUserIds || []),
                 ]
             );
 
@@ -572,7 +613,8 @@ function createPostgresDatabase(config) {
                         user_id,
                         timestamp,
                         profile_picture_index,
-                        profile_picture_url
+                        profile_picture_url,
+                        pinged_user_ids
                     FROM messages
                     WHERE conversation_id = $1
                     ${afterClause}
@@ -707,28 +749,6 @@ function createPostgresDatabase(config) {
             return result.rows[0].count;
         },
 
-        async getNotificationRecipientUserIds(conversationId, excludeUserId) {
-            const params = [conversationId];
-            let excludeClause = "AND user_id IS NOT NULL";
-
-            if (excludeUserId) {
-                params.push(excludeUserId);
-                excludeClause = "AND user_id IS NOT NULL AND user_id <> $2";
-            }
-
-            const result = await pool.query(
-                `
-                    SELECT DISTINCT user_id
-                    FROM messages
-                    WHERE conversation_id = $1
-                    ${excludeClause}
-                `,
-                params
-            );
-
-            return result.rows.map((row) => row.user_id);
-        },
-
         async savePushSubscription({ userId, token, conversationId }) {
             await pool.query(
                 `
@@ -790,6 +810,7 @@ function mapMessageRow(row) {
         timestamp: Number(row.timestamp),
         profilePictureIndex: row.profile_picture_index,
         profilePictureUrl: row.profile_picture_url,
+        pingedUserIds: row.pinged_user_ids || [],
     };
 }
 

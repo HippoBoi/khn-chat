@@ -154,3 +154,8 @@
 .message-link:hover {
   color: var(--color-primary);
 }
+
+.message-ping {
+  color: var(--color-primary-strong);
+  font-weight: 800;
+}

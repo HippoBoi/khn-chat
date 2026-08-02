@@ -36,13 +36,16 @@ export function useNotification() {
   const addToast = useNotificationStore((s) => s.addToast);
   const addNotification = useNotificationStore((s) => s.addNotification);
   const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
+  const markAllRead = useNotificationStore((s) => s.markAllRead);
   const setReadState = useNotificationStore((s) => s.setReadState);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
 
   useEffect(() => {
     if (!isConnected) return;
+
     fetchNotifications();
-  }, [isConnected, fetchNotifications]);
+    markAllRead();
+  }, [isConnected, fetchNotifications, markAllRead]);
 
   useEffect(() => {
     const handleNotification = (notification: Notification) => {
@@ -90,10 +93,11 @@ export function useNotification() {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         fetchNotifications();
+        markAllRead();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchNotifications]);
+  }, [fetchNotifications, markAllRead]);
 }
