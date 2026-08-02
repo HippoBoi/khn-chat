@@ -14,6 +14,11 @@ export function useSocket() {
     socket.on('connect', () => {
       setConnected(true);
       setChatVisible(true);
+
+      const userId = useChatStore.getState().userId;
+      if (userId) {
+        socket.emit('identify', { userId });
+      }
     });
 
     socket.on('disconnect', () => {

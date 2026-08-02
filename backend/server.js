@@ -15,6 +15,7 @@ const clientUrl = process.env.CLIENT_URL || "*";
 const allowedClientOrigins = parseAllowedOrigins(clientUrl);
 const defaultConversationId = process.env.DEFAULT_CONVERSATION_ID || "public";
 const messageHistoryLimit = Number(process.env.MESSAGE_HISTORY_LIMIT || 100);
+const notificationHistoryLimit = Number(process.env.NOTIFICATION_HISTORY_LIMIT || 100);
 const maxMessageTextLength = 1000;
 const databaseUrl = process.env.DATABASE_URL;
 const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -66,6 +67,29 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
+        if (req.method === "GET" && requestUrl.pathname === "/notifications") {
+            const userId = validateUserId(requestUrl.searchParams.get("userId"));
+            const limit = Number(requestUrl.searchParams.get("limit") || notificationHistoryLimit);
+            const after = requestUrl.searchParams.get("after");
+            const notifications = await database.getNotifications({ userId, limit, after });
+
+            sendJson(res, 200, { notifications });
+            return;
+        }
+
+        if (req.method === "POST" && requestUrl.pathname === "/notifications/read") {
+            const payload = await readJsonBody(req);
+            const userId = validateUserId(payload.userId);
+
+            if (!userId) {
+                throw httpError(400, "User ID is required");
+            }
+
+            const result = await database.markNotificationsRead({ userId, id: payload.id });
+            sendJson(res, 200, result);
+            return;
+        }
+
         const conversationMessagesMatch = requestUrl.pathname.match(/^\/conversations\/([^/]+)\/messages$/);
         if (req.method === "GET" && conversationMessagesMatch) {
             const conversationId = decodeURIComponent(conversationMessagesMatch[1]);
@@ -83,6 +107,7 @@ const server = http.createServer(async (req, res) => {
             const message = await saveIncomingMessage(payload, conversationId);
 
             io.to(conversationRoom(conversationId)).emit("message", message);
+            await notifyRecipients(message);
             sendJson(res, 201, { message });
             return;
         }
@@ -103,11 +128,21 @@ io.on("connection", (socket) => {
     const conversationId = socket.handshake.query.conversationId || defaultConversationId;
     socket.join(conversationRoom(conversationId));
 
+    socket.on("identify", (payload) => {
+        const userId = validateUserId(payload && payload.userId);
+
+        if (userId) {
+            socket.data.userId = userId;
+            socket.join(userRoom(userId));
+        }
+    });
+
     socket.on("message", async (payload, ack) => {
         try {
             const message = await saveIncomingMessage(payload, payload.conversationId || conversationId);
 
             io.to(conversationRoom(message.conversationId)).emit("message", message);
+            await notifyRecipients(message);
 
             if (typeof ack === "function") {
                 ack({ ok: true, message });
@@ -136,6 +171,30 @@ async function startServer() {
 async function saveIncomingMessage(payload, conversationId) {
     const cleanMessage = validateMessagePayload(payload, conversationId);
     return database.saveMessage(cleanMessage);
+}
+
+async function notifyRecipients(message) {
+    const recipientUserIds = await database.getNotificationRecipientUserIds(
+        message.conversationId,
+        message.userId
+    );
+
+    for (const userId of recipientUserIds) {
+        const notification = await database.saveNotification({
+            userId,
+            conversationId: message.conversationId,
+            type: "message",
+            title: message.sender,
+            body: message.text,
+            data: {
+                messageId: message.id,
+                profilePictureUrl: message.profilePictureUrl || null,
+                profilePictureIndex: message.profilePictureIndex,
+            },
+        });
+
+        io.to(userRoom(userId)).emit("notification", notification);
+    }
 }
 
 function validateMessagePayload(payload, conversationId) {
@@ -291,6 +350,23 @@ function createPostgresDatabase(config) {
                 ALTER TABLE messages
                 ADD COLUMN IF NOT EXISTS user_id UUID;
             `);
+
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id UUID PRIMARY KEY,
+                    user_id UUID NOT NULL,
+                    conversation_id TEXT NOT NULL,
+                    type TEXT NOT NULL DEFAULT 'message',
+                    title TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    data JSONB,
+                    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+
+                CREATE INDEX IF NOT EXISTS notifications_user_created_idx
+                    ON notifications (user_id, created_at DESC);
+            `);
         },
 
         async saveMessage(message) {
@@ -368,6 +444,133 @@ function createPostgresDatabase(config) {
 
             return result.rows.reverse().map(mapMessageRow);
         },
+
+        async saveNotification(notification) {
+            const id = crypto.randomUUID();
+
+            const result = await pool.query(
+                `
+                    INSERT INTO notifications (
+                        id,
+                        user_id,
+                        conversation_id,
+                        type,
+                        title,
+                        body,
+                        data
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    RETURNING
+                        id,
+                        user_id,
+                        conversation_id,
+                        type,
+                        title,
+                        body,
+                        data,
+                        is_read,
+                        created_at
+                `,
+                [
+                    id,
+                    notification.userId,
+                    notification.conversationId,
+                    notification.type || "message",
+                    notification.title,
+                    notification.body,
+                    JSON.stringify(notification.data || {}),
+                ]
+            );
+
+            return mapNotificationRow(result.rows[0]);
+        },
+
+        async getNotifications({ userId, limit, after }) {
+            if (!userId) {
+                return [];
+            }
+
+            const safeLimit = Math.min(Math.max(Number(limit) || notificationHistoryLimit, 1), 500);
+            const afterDate = new Date(Number(after));
+            const params = [userId, safeLimit];
+            let afterClause = "";
+
+            if (after && Number.isFinite(afterDate.getTime())) {
+                params.push(afterDate);
+                afterClause = "AND created_at < $3";
+            }
+
+            const result = await pool.query(
+                `
+                    SELECT
+                        id,
+                        user_id,
+                        conversation_id,
+                        type,
+                        title,
+                        body,
+                        data,
+                        is_read,
+                        created_at
+                    FROM notifications
+                    WHERE user_id = $1
+                    ${afterClause}
+                    ORDER BY created_at DESC
+                    LIMIT $2
+                `,
+                params
+            );
+
+            return result.rows.map(mapNotificationRow);
+        },
+
+        async markNotificationsRead({ userId, id }) {
+            if (!userId) {
+                return { updated: 0 };
+            }
+
+            const params = [userId];
+            let idClause = "";
+
+            if (id) {
+                params.push(id);
+                idClause = "AND id = $2";
+            }
+
+            const result = await pool.query(
+                `
+                    UPDATE notifications
+                    SET is_read = TRUE
+                    WHERE user_id = $1
+                    ${idClause}
+                `,
+                params
+            );
+
+            return { updated: result.rowCount };
+        },
+
+        async getNotificationRecipientUserIds(conversationId, excludeUserId) {
+            const params = [conversationId];
+            let excludeClause = "AND user_id IS NOT NULL";
+
+            if (excludeUserId) {
+                params.push(excludeUserId);
+                excludeClause = "AND user_id IS NOT NULL AND user_id <> $2";
+            }
+
+            const result = await pool.query(
+                `
+                    SELECT DISTINCT user_id
+                    FROM messages
+                    WHERE conversation_id = $1
+                    ${excludeClause}
+                `,
+                params
+            );
+
+            return result.rows.map((row) => row.user_id);
+        },
     };
 }
 
@@ -381,6 +584,20 @@ function mapMessageRow(row) {
         timestamp: Number(row.timestamp),
         profilePictureIndex: row.profile_picture_index,
         profilePictureUrl: row.profile_picture_url,
+    };
+}
+
+function mapNotificationRow(row) {
+    return {
+        id: row.id,
+        userId: row.user_id,
+        conversationId: row.conversation_id,
+        type: row.type,
+        title: row.title,
+        body: row.body,
+        data: row.data,
+        isRead: row.is_read,
+        createdAt: new Date(row.created_at).getTime(),
     };
 }
 
@@ -435,6 +652,10 @@ function normalizeUrlBase(url) {
 
 function conversationRoom(conversationId) {
     return `conversation:${conversationId}`;
+}
+
+function userRoom(userId) {
+    return `user:${userId}`;
 }
 
 function sendJson(res, statusCode, payload) {

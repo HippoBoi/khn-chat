@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { socket } from '../services/socket';
 import { useChatStore } from '../store/useChatStore';
 import { useNotificationStore } from '../store/useNotificationStore';
-import type { Message } from '../types/message';
+import type { Notification } from '../types/notification';
 
 const ORIGINAL_TITLE = 'KHN Chat';
 
@@ -31,50 +31,40 @@ function playNotificationSound() {
   }
 }
 
-function sendBrowserNotification(title: string, body: string) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  new Notification(title, { body, icon: '/icon.svg' });
-}
-
-function requestNotificationPermission() {
-  if (!('Notification' in window) || Notification.permission !== 'default') return;
-  Notification.requestPermission().catch(() => {});
-}
-
 export function useNotification() {
-  const userId = useChatStore((s) => s.userId);
+  const isConnected = useChatStore((s) => s.isConnected);
   const addToast = useNotificationStore((s) => s.addToast);
-  const incrementUnread = useNotificationStore((s) => s.incrementUnread);
-  const resetUnread = useNotificationStore((s) => s.resetUnread);
+  const addNotification = useNotificationStore((s) => s.addNotification);
+  const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
 
   useEffect(() => {
-    const handleMessage = (msg: Message) => {
-      if (msg.userId === userId) return;
+    if (!isConnected) return;
+    fetchNotifications();
+  }, [isConnected, fetchNotifications]);
+
+  useEffect(() => {
+    const handleNotification = (notification: Notification) => {
+      addNotification(notification);
 
       addToast({
         type: 'message',
-        title: msg.sender,
-        body: msg.text,
-        sender: msg.sender,
-        avatarUrl: msg.profilePictureUrl ?? undefined,
+        title: notification.title,
+        body: notification.body,
+        sender: notification.title,
+        avatarUrl: notification.data?.profilePictureUrl ?? undefined,
       });
-
-      incrementUnread();
-
-      if (document.hidden) {
-        requestNotificationPermission();
-        sendBrowserNotification(msg.sender, msg.text);
-      }
 
       if (useNotificationStore.getState().isSoundEnabled) {
         playNotificationSound();
       }
     };
 
-    socket.on('message', handleMessage);
-    return () => { socket.off('message', handleMessage); };
-  }, [userId, addToast, incrementUnread]);
+    socket.on('notification', handleNotification);
+    return () => {
+      socket.off('notification', handleNotification);
+    };
+  }, [addNotification, addToast]);
 
   useEffect(() => {
     if (unreadCount > 0) {
@@ -87,11 +77,11 @@ export function useNotification() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        resetUnread();
+        fetchNotifications();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [resetUnread]);
+  }, [fetchNotifications]);
 }
