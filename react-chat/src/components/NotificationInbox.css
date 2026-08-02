@@ -110,6 +110,59 @@
   text-align: center;
 }
 
+.notification-inbox-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid var(--color-border);
+  padding: 0.7rem 1rem;
+}
+
+.notification-inbox-footer-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.notification-inbox-push-toggle {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 0;
+  width: 42px;
+  height: 24px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  padding: 0;
+  background: var(--color-panel-soft);
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.notification-inbox-push-toggle:hover:not(:disabled) {
+  filter: none;
+}
+
+.notification-inbox-push-toggle--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.notification-inbox-push-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-panel-solid);
+  box-shadow: var(--shadow-card);
+  transition: transform 160ms ease;
+}
+
+.notification-inbox-push-toggle--active .notification-inbox-push-thumb {
+  transform: translateX(18px);
+}
+
 .notification-inbox-item {
   display: flex;
   flex-direction: column;

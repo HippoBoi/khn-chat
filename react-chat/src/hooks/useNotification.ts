@@ -36,6 +36,7 @@ export function useNotification() {
   const addToast = useNotificationStore((s) => s.addToast);
   const addNotification = useNotificationStore((s) => s.addNotification);
   const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
+  const setReadState = useNotificationStore((s) => s.setReadState);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
 
   useEffect(() => {
@@ -65,6 +66,17 @@ export function useNotification() {
       socket.off('notification', handleNotification);
     };
   }, [addNotification, addToast]);
+
+  useEffect(() => {
+    const handleReadState = (payload: { all?: boolean; id?: string }) => {
+      setReadState(payload);
+    };
+
+    socket.on('notifications-read', handleReadState);
+    return () => {
+      socket.off('notifications-read', handleReadState);
+    };
+  }, [setReadState]);
 
   useEffect(() => {
     if (unreadCount > 0) {

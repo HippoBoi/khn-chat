@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNotificationStore } from '../store/useNotificationStore';
+import { usePushSubscription } from '../hooks/usePushSubscription';
 import './NotificationInbox.css';
 
 const NOTIFICATION_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
@@ -21,6 +22,8 @@ export function NotificationInbox() {
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
+  const { isSupported, isSubscribed, isSubscribing, subscribe, unsubscribe } =
+    usePushSubscription();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -113,6 +116,30 @@ export function NotificationInbox() {
               ))
             )}
           </ul>
+          {isSupported ? (
+            <div className="notification-inbox-footer">
+              <span className="notification-inbox-footer-label">Push notifications</span>
+              <button
+                type="button"
+                role="switch"
+                className={`notification-inbox-push-toggle${
+                  isSubscribed ? ' notification-inbox-push-toggle--active' : ''
+                }`}
+                onClick={() => {
+                  if (isSubscribed) {
+                    unsubscribe();
+                  } else {
+                    subscribe();
+                  }
+                }}
+                disabled={isSubscribing}
+                aria-checked={isSubscribed}
+                aria-label="Toggle push notifications"
+              >
+                <span className="notification-inbox-push-thumb" />
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
