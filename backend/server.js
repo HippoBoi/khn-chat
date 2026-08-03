@@ -75,6 +75,7 @@ function initializeFirebaseMessaging() {
             credential: cert(serviceAccount),
         });
         firebaseMessaging = getMessaging();
+        console.log("firebase messaging initialized for push notifications.");
     } catch (error) {
         console.error("failed to initialize firebase messaging:", error.message);
     }
@@ -293,6 +294,8 @@ async function notifyRecipients(message) {
 
     if (firebaseMessaging) {
         await sendPushNotifications(message, recipientUserIds);
+    } else {
+        console.log("push: firebase messaging not initialized; device push skipped.");
     }
 }
 
@@ -303,6 +306,7 @@ async function sendPushNotifications(message, recipientUserIds) {
 
     const subscriptions = await database.getPushSubscriptionsForUserIds(recipientUserIds);
     if (subscriptions.length === 0) {
+        console.log(`push: no stored subscriptions for recipient(s) ${recipientUserIds.length}; skipping.`);
         return;
     }
 
@@ -321,6 +325,9 @@ async function sendPushNotifications(message, recipientUserIds) {
                 messageId: message.id,
             },
         });
+
+        const failed = response.responses.filter((result) => !result.success).length;
+        console.log(`push: sent to ${tokens.length} token(s), ${failed} failed.`);
 
         const staleTokens = response.responses
             .map((result, index) => (result.success ? null : tokens[index]))
