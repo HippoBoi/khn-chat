@@ -329,6 +329,14 @@ async function sendPushNotifications(message, recipientUserIds) {
         const failed = response.responses.filter((result) => !result.success).length;
         console.log(`push: sent to ${tokens.length} token(s), ${failed} failed.`);
 
+        response.responses.forEach((result, index) => {
+            if (!result.success && result.error) {
+                console.log(
+                    `push: token[${index}] failed: ${result.error.code || "unknown"} - ${result.error.message || ""}`
+                );
+            }
+        });
+
         const staleTokens = response.responses
             .map((result, index) => (result.success ? null : tokens[index]))
             .filter(Boolean);
