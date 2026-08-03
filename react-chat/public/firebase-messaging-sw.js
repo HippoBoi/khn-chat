@@ -1,6 +1,14 @@
 importScripts('https://www.gstatic.com/firebasejs/12.17.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/12.17.0/firebase-messaging-compat.js');
 
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+});
+
 firebase.initializeApp({
   apiKey: 'AIzaSyCP0OhN79PZ6rdCRnTlAUR2bJHFeLI6fu0',
   authDomain: 'khn-chat-b8853.firebaseapp.com',
