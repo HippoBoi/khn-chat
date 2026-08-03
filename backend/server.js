@@ -36,21 +36,43 @@ if (!databaseUrl) {
 const database = createPostgresDatabase({ connectionString: databaseUrl });
 let firebaseMessaging = null;
 
-function initializeFirebaseMessaging() {
-    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+function resolveFirebaseServiceAccount() {
+    const jsonFromEnv = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 
-    if (!serviceAccountPath) {
-        return;
+    if (jsonFromEnv) {
+        try {
+            return JSON.parse(jsonFromEnv);
+        } catch (error) {
+            console.error("FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON:", error.message);
+            return null;
+        }
     }
 
-    if (!fs.existsSync(serviceAccountPath)) {
-        console.error("FIREBASE_SERVICE_ACCOUNT_PATH points to a missing file; push notifications disabled.");
+    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+
+    if (serviceAccountPath) {
+        if (!fs.existsSync(serviceAccountPath)) {
+            console.error("FIREBASE_SERVICE_ACCOUNT_PATH points to a missing file; push notifications disabled.");
+            return null;
+        }
+
+        return serviceAccountPath;
+    }
+
+    return null;
+}
+
+function initializeFirebaseMessaging() {
+    const serviceAccount = resolveFirebaseServiceAccount();
+
+    if (!serviceAccount) {
+        console.error("FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH missing; push notifications disabled.");
         return;
     }
 
     try {
         initializeFirebaseApp({
-            credential: cert(serviceAccountPath),
+            credential: cert(serviceAccount),
         });
         firebaseMessaging = getMessaging();
     } catch (error) {
