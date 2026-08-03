@@ -142,14 +142,15 @@ export function usePushSubscription() {
       if (!messaging) return;
 
       unsubscribe = onMessage(messaging, (payload) => {
-        const notification = payload.notification;
-        if (!notification) return;
+        const title = payload.data?.title || payload.notification?.title;
+        const body = payload.data?.body || payload.notification?.body || '';
+        if (!title) return;
 
         addToast({
           type: 'message',
-          title: notification.title ?? 'KHN Chat',
-          body: notification.body ?? '',
-          sender: notification.title ?? undefined,
+          title,
+          body,
+          sender: title,
         });
       });
     });
