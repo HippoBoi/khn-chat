@@ -15,7 +15,7 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || 'KHN Chat';
   const notificationOptions = {
     body: payload.notification?.body || '',
-    icon: '/icon.svg',
+    icon: payload.data?.profilePictureUrl || '/icon.svg',
     data: payload.data || {},
   };
 

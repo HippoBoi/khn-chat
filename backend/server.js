@@ -318,11 +318,11 @@ async function sendPushNotifications(message, recipientUserIds) {
             notification: {
                 title: message.sender,
                 body: message.text,
-                icon: message.profilePictureUrl || undefined,
             },
             data: {
                 conversationId: message.conversationId,
                 messageId: message.id,
+                profilePictureUrl: message.profilePictureUrl || "",
             },
         });
 
