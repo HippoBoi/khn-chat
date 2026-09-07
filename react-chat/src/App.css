@@ -9,7 +9,7 @@
   min-height: 100vh;
   width: min(100%, 720px);
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: calc(2rem + env(safe-area-inset-top)) 1rem calc(2rem + env(safe-area-inset-bottom));
 }
 
 .video-panel {
@@ -35,7 +35,7 @@
 
 .app-navbar {
   position: sticky;
-  top: 1rem;
+  top: calc(1rem + env(safe-area-inset-top));
   z-index: 20;
   display: flex;
   align-items: center;

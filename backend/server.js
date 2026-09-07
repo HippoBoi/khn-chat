@@ -315,6 +315,10 @@ async function sendPushNotifications(message, recipientUserIds) {
     try {
         const response = await firebaseMessaging.sendEachForMulticast({
             tokens,
+            notification: {
+                title: message.sender,
+                body: message.text,
+            },
             data: {
                 title: message.sender,
                 body: message.text,
