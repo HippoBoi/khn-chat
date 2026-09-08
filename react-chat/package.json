@@ -10,7 +10,12 @@
     "preview": "vite preview",
     "cap:sync": "cap sync android",
     "cap:open:android": "cap open android",
-    "cap:add:android": "cap add android"
+    "cap:add:android": "cap add android",
+    "cap:build": "npm run build && cap sync android",
+    "cap:assemble": "cd android && gradlew.bat :app:assembleDebug",
+    "cap:install": "%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb install -r android/app/build/outputs/apk/debug/app-debug.apk",
+    "cap:launch": "%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb shell am start -n com.hippo.khnchat/.MainActivity",
+    "cap:deploy": "npm run build && cap sync android && cd android && gradlew.bat :app:assembleDebug && cd .. && %LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb install -r android/app/build/outputs/apk/debug/app-debug.apk && %LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb shell am start -n com.hippo.khnchat/.MainActivity"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",

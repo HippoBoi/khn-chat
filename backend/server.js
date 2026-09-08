@@ -14,7 +14,8 @@ loadEnvFile();
 
 const port = process.env.PORT || 3001;
 const clientUrl = process.env.CLIENT_URL || "*";
-const allowedClientOrigins = parseAllowedOrigins(clientUrl);
+const nativeClientOrigins = ["https://localhost", "http://localhost", "capacitor://localhost"];
+const allowedClientOrigins = parseAllowedOrigins(clientUrl, nativeClientOrigins);
 const defaultConversationId = process.env.DEFAULT_CONVERSATION_ID || "public";
 const messageHistoryLimit = Number(process.env.MESSAGE_HISTORY_LIMIT || 100);
 const notificationHistoryLimit = Number(process.env.NOTIFICATION_HISTORY_LIMIT || 100);
@@ -897,15 +898,20 @@ function loadEnvFile() {
     }
 }
 
-function parseAllowedOrigins(value) {
+function parseAllowedOrigins(value, extraOrigins = []) {
     if (!value || value === "*") {
         return "*";
     }
 
-    return value
-        .split(",")
-        .map((origin) => normalizeOrigin(origin))
-        .filter(Boolean);
+    return Array.from(
+        new Set([
+            ...value
+                .split(",")
+                .map((origin) => normalizeOrigin(origin))
+                .filter(Boolean),
+            ...extraOrigins,
+        ])
+    );
 }
 
 function normalizeOrigin(origin) {
