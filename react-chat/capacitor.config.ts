@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.khnchat.mobile',
+  appId: 'com.hippo.khnchat',
   appName: 'KHN Chat',
   webDir: 'dist',
   server: {
