@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getMessaging, isSupported, type Messaging } from 'firebase/messaging';
 
 const firebaseConfig = {
@@ -9,11 +9,16 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-export const firebaseApp = initializeApp(firebaseConfig);
+export const firebaseApp: FirebaseApp | null =
+  firebaseConfig.apiKey && firebaseConfig.projectId ? initializeApp(firebaseConfig) : null;
 
 let messagingPromise: Promise<Messaging | null> | null = null;
 
 export function getFirebaseMessaging(): Promise<Messaging | null> {
+  if (!firebaseApp) {
+    return Promise.resolve(null);
+  }
+
   if (!messagingPromise) {
     messagingPromise = isSupported()
       .then((supported) => (supported ? getMessaging(firebaseApp) : null))

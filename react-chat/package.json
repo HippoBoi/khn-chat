@@ -7,9 +7,21 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:sync": "cap sync android",
+    "cap:open:android": "cap open android",
+    "cap:add:android": "cap add android",
+    "cap:build": "npm run build && cap sync android",
+    "cap:assemble": "cd android && gradlew.bat :app:assembleDebug",
+    "cap:install": "%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb install -r android/app/build/outputs/apk/debug/app-debug.apk",
+    "cap:launch": "%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb shell am start -n com.hippo.khnchat/.MainActivity",
+    "cap:deploy": "npm run build && cap sync android && cd android && gradlew.bat :app:assembleDebug && cd .. && %LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb install -r android/app/build/outputs/apk/debug/app-debug.apk && %LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb shell am start -n com.hippo.khnchat/.MainActivity"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/push-notifications": "^8.1.2",
     "axios": "^1.18.0",
     "firebase": "^12.17.0",
     "react": "^19.2.0",
@@ -19,6 +31,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.1",
     "@eslint/js": "^9.39.1",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
