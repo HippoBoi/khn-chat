@@ -13,4 +13,5 @@ export interface PushService {
   unsubscribe(userId: string): Promise<void>;
   onForegroundMessage(callback: (message: PushMessage) => void): () => void;
   onNotificationTap(callback: () => void): () => void;
+  setUserId?(userId: string): void;
 }

@@ -73,6 +73,7 @@ export function usePushSubscription() {
     if (!isSupported || !isConnected || !userId || !isEnabled) return;
     if (!pushService.canRequestPermission()) return;
 
+    pushService.setUserId?.(userId);
     subscribe();
   }, [isSupported, isConnected, userId, isEnabled, pushService, subscribe]);
 

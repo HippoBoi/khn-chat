@@ -9,6 +9,7 @@ class NativePushService implements PushService {
   private isInitialized = false;
   private foregroundListener: ((message: PushMessage) => void) | undefined;
   private tapListener: (() => void) | undefined;
+  private currentUserId: string | null = null;
 
   isSupported(): boolean {
     return true;
@@ -28,6 +29,29 @@ class NativePushService implements PushService {
     PushNotifications.addListener('pushNotificationActionPerformed', () => {
       this.tapListener?.();
     }).catch(() => {});
+
+    // Handle token rotation: FCM periodically refreshes tokens,
+    // especially on Samsung devices with aggressive battery optimization.
+    // Re-subscribe with the new token so the backend stays current.
+    PushNotifications.addListener('registration', (result) => {
+      const newToken = result.value;
+      const storedToken = this.getStoredToken();
+
+      this.storeToken(newToken);
+
+      // If the token changed, re-subscribe with the backend
+      if (newToken !== storedToken && this.currentUserId) {
+        api.post('/push/subscribe', {
+          userId: this.currentUserId,
+          token: newToken,
+          conversationId: DEFAULT_CONVERSATION_ID,
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+  }
+
+  setUserId(userId: string) {
+    this.currentUserId = userId;
   }
 
   async getSubscriptionStatus(): Promise<boolean> {
@@ -39,6 +63,8 @@ class NativePushService implements PushService {
   }
 
   async subscribe(userId: string): Promise<boolean> {
+    this.currentUserId = userId;
+
     let permission = await this.checkPermission();
 
     if (permission.receive === 'prompt') {
@@ -110,9 +136,9 @@ class NativePushService implements PushService {
   }
 
   private async getToken(): Promise<string | null> {
-    const stored = this.getStoredToken();
-    if (stored) return stored;
-
+    // Always re-register to get the latest FCM token.
+    // Firebase periodically rotates tokens (especially on Samsung devices),
+    // so we must not rely on the cached token from localStorage.
     return new Promise((resolve) => {
       const timeout = window.setTimeout(() => resolve(null), 15000);
       let settled = false;
