@@ -52,7 +52,7 @@ export function usePushSubscription() {
       await pushService.unsubscribe(userId);
       setIsSubscribed(false);
     } catch {
-      // Unsubscribe failed; push state may be stale.
+      // err
     }
   }, [pushService, userId]);
 

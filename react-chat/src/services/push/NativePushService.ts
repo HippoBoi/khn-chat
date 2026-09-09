@@ -66,14 +66,14 @@ class NativePushService implements PushService {
       try {
         await api.delete('/push/subscribe', { data: { userId, token } });
       } catch {
-        // Unsubscribe request failed; native token still removed below.
+        // err
       }
     }
 
     try {
       await PushNotifications.unregister();
     } catch {
-      // Unregister failed; push state may be stale.
+      // err
     }
 
     this.clearStoredToken();
@@ -142,7 +142,7 @@ class NativePushService implements PushService {
     try {
       window.localStorage.setItem(NATIVE_PUSH_TOKEN_KEY, token);
     } catch {
-      // Storage unavailable; token kept in memory only.
+      // error
     }
   }
 
@@ -158,7 +158,7 @@ class NativePushService implements PushService {
     try {
       window.localStorage.removeItem(NATIVE_PUSH_TOKEN_KEY);
     } catch {
-      // Storage unavailable; nothing to clear.
+      // error
     }
   }
 }

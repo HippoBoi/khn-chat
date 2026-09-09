@@ -19,9 +19,7 @@ class WebPushService implements PushService {
 
     navigator.serviceWorker
       .register('/firebase-messaging-sw.js')
-      .catch(() => {
-        // Service worker registration failed; push notifications unavailable.
-      });
+      .catch(() => {});
   }
 
   async getSubscriptionStatus(): Promise<boolean> {
