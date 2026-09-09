@@ -1,55 +1,26 @@
-# Correr el proyecto
+# KHN Chat
+This project is a simple chat application that is being developed over time.
+Currently uses Capacitor so it works natively for mobile.
 
-1. **React Chat** (puerto 8000):
+This repo includes both frontend and backend so it was easier to manage (I'm regretting this a little bit but it's pretty workable)
+Some bad organization lead me to use Docker only for running the PostgreSQL database instead of the whole project. This is something I have to work on later on.
 
-   ```bash
-   cd react-chat
-   npm install
-   npm run dev
-   ```
+# Running the project
+## Web App
+> npm install
 
-2. **Backend** (es el mismo de las instrucciones):
+> npm run dev
 
-   ```bash
-   cd backend
-   npm install
-   npm start
-   ```
+## Backend
+> npm install
 
-# Chat realtime con Socket.io
+> npm start
 
-Prueba técnica Finmarkets: crear un chat con realtime utilizando Socket.io.
+Note: you must be running the database already or the backend will fail.
 
-### React Chat
+## Mobile App
+> npm run cap:deploy
 
-El chat con React se conecta con el backend Socket.io utilizando un hook (useSocket) y escucha eventos connect, disconnect y message.
-
-Cuando el usuario envía un mensaje se emite llamando socket.emit(mensaje). Socket.io se encarga luego de entregarle el mensaje a los demás usuarios que estén suscritos al evento message
-
-Los mensajes se guardan en localStorage, entonces cuando el usuario reinicia la página siguen ahí.
-
-### Zustand
-
-La app con React usa Zustand para el manejo de estado porque tiene buen rendimiento (aunque la app es tán simple que no importa realmente) es la que más me gusta y con la que más tengo experiencia.
-
-### Avatar de usuario
-
-Ya que la prueba consta únicamente de frontend, opté por hacer un sistema simple de Avatar de usuario que cada uno puede elegir y se muestra antes de su nombre de usuario en el chat.
-
-El sistema funciona así:
-El usuario elige una de las imágenes disponibles, y en el store se guarda el index del avatar qu se escogió. Cuando el usuario manda un mensaje, en el mensaje se envia también el index de su avatar, entonces cuando el mensaje llegue a la otra persona se puede leer el index del avatar y mostrar la imágen que corresponda en pantalla.
-
-Interfaz del mensaje:
-
-```typescript
-interface Message {
-  id: string;
-  text: string;
-  sender: string;
-  timestamp: number;
-  profilePictureIndex: number;
-  profilePictureUrl?: string | null;
-}
-```
+Note: this is just a command that runs other commands. Sorry for not going into much detail about that. You can check package.json on the react-chat folder to see what it does in the background
 
 this project is a lesson to just use laravel instead
