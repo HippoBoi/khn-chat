@@ -11,6 +11,9 @@ dist
 dist-ssr
 *.local
 .env
+android/keystore.properties
+android/app/*.jks
+android/app/*.keystore
 
 .vscode/*
 !.vscode/extensions.json
