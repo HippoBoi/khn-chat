@@ -1,6 +1,6 @@
 .toast-container {
   position: fixed;
-  bottom: 1.25rem;
+  bottom: calc(1.25rem + env(safe-area-inset-bottom));
   right: 1.25rem;
   z-index: 100;
   display: flex;

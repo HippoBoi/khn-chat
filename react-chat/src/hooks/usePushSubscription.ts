@@ -1,16 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getToken, onMessage } from 'firebase/messaging';
-import api from '../services/api';
-import { getFirebaseMessaging } from '../services/firebase';
+import { getPushService } from '../services/push';
 import { useChatStore } from '../store/useChatStore';
 import { useNotificationStore } from '../store/useNotificationStore';
 
-const DEFAULT_CONVERSATION_ID = 'public';
 const PUSH_ENABLED_KEY = 'chat-push-notifications-enabled';
-
-function getIsPushSupported(): boolean {
-  return 'serviceWorker' in navigator && 'PushManager' in window;
-}
 
 function getPushEnabled(): boolean {
   const stored = window.localStorage.getItem(PUSH_ENABLED_KEY);
@@ -21,7 +14,8 @@ function getPushEnabled(): boolean {
 export function usePushSubscription() {
   const userId = useChatStore((s) => s.userId);
   const isConnected = useChatStore((s) => s.isConnected);
-  const [isSupported] = useState(getIsPushSupported);
+  const [pushService] = useState(getPushService);
+  const [isSupported] = useState(() => pushService.isSupported());
   const [isEnabled, setIsEnabled] = useState(getPushEnabled);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
@@ -29,87 +23,38 @@ export function usePushSubscription() {
   useEffect(() => {
     if (!isSupported) return;
 
-    navigator.serviceWorker
-      .register('/firebase-messaging-sw.js')
-      .catch(() => {
-        // Service worker registration failed; push notifications unavailable.
-      });
-  }, [isSupported]);
+    pushService.initialize();
+  }, [isSupported, pushService]);
 
   useEffect(() => {
     if (!isSupported) return;
 
-    const syncStatus = async () => {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        const existing = await registration.pushManager.getSubscription();
-        setIsSubscribed(!!existing);
-      } catch {
-        setIsSubscribed(false);
-      }
-    };
-
-    syncStatus();
-  }, [isSupported]);
+    pushService.getSubscriptionStatus().then(setIsSubscribed);
+  }, [isSupported, pushService]);
 
   const subscribe = useCallback(async (): Promise<boolean> => {
-    if (!isSupported) return false;
-
     setIsSubscribing(true);
     try {
-      const messaging = await getFirebaseMessaging();
-      if (!messaging) return false;
-
-      const registration = await navigator.serviceWorker.ready;
-      const token = await getToken(messaging, {
-        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
-        serviceWorkerRegistration: registration,
-      });
-      if (!token) return false;
-
-      await api.post('/push/subscribe', {
-        userId,
-        token,
-        conversationId: DEFAULT_CONVERSATION_ID,
-      });
-
-      setIsSubscribed(true);
-      return true;
+      const subscribed = await pushService.subscribe(userId);
+      if (subscribed) {
+        setIsSubscribed(true);
+      }
+      return subscribed;
     } catch {
       return false;
     } finally {
       setIsSubscribing(false);
     }
-  }, [isSupported, userId]);
+  }, [pushService, userId]);
 
   const unsubscribe = useCallback(async () => {
-    if (!isSupported) return;
-
     try {
-      const messaging = await getFirebaseMessaging();
-      const registration = await navigator.serviceWorker.ready;
-
-      if (messaging) {
-        const token = await getToken(messaging, {
-          vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
-          serviceWorkerRegistration: registration,
-        }).catch(() => null);
-
-        if (token) {
-          await api.delete('/push/subscribe', { data: { userId, token } });
-        }
-      }
-
-      const existing = await registration.pushManager.getSubscription();
-      if (existing) {
-        await existing.unsubscribe();
-      }
-
+      await pushService.unsubscribe(userId);
       setIsSubscribed(false);
     } catch {
-      // Unsubscribe failed; push state may be stale.
+      // err
     }
-  }, [isSupported, userId]);
+  }, [pushService, userId]);
 
   const toggle = useCallback(async () => {
     if (isEnabled) {
@@ -126,39 +71,35 @@ export function usePushSubscription() {
 
   useEffect(() => {
     if (!isSupported || !isConnected || !userId || !isEnabled) return;
-    if (Notification.permission !== 'default' && Notification.permission !== 'granted') return;
+    if (!pushService.canRequestPermission()) return;
 
     subscribe();
-  }, [isSupported, isConnected, userId, isEnabled, subscribe]);
+  }, [isSupported, isConnected, userId, isEnabled, pushService, subscribe]);
 
   useEffect(() => {
     if (!isSupported) return;
 
     const addToast = useNotificationStore.getState().addToast;
-
-    let unsubscribe: (() => void) | undefined;
-
-    getFirebaseMessaging().then((messaging) => {
-      if (!messaging) return;
-
-      unsubscribe = onMessage(messaging, (payload) => {
-        const title = payload.data?.title || payload.notification?.title;
-        const body = payload.data?.body || payload.notification?.body || '';
-        if (!title) return;
-
-        addToast({
-          type: 'message',
-          title,
-          body,
-          sender: title,
-        });
+    const removeForeground = pushService.onForegroundMessage((message) => {
+      addToast({
+        type: 'message',
+        title: message.title,
+        body: message.body,
+        sender: message.title,
       });
     });
 
+    const removeTap = pushService.onNotificationTap(() => {
+      const store = useNotificationStore.getState();
+      store.fetchNotifications();
+      store.markAllRead();
+    });
+
     return () => {
-      unsubscribe?.();
+      removeForeground();
+      removeTap();
     };
-  }, [isSupported]);
+  }, [isSupported, pushService]);
 
   return {
     isSupported,
