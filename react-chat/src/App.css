@@ -1,5 +1,13 @@
 .app-layout {
   width: 100%;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 720px);
+  align-items: start;
+  justify-content: center;
+  gap: 1rem;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: calc(2rem + env(safe-area-inset-top)) 1rem calc(2rem + env(safe-area-inset-bottom));
 }
 
 .app-container {
@@ -8,8 +16,8 @@
   gap: 1rem;
   min-height: 100vh;
   width: min(100%, 720px);
-  margin: 0 auto;
-  padding: calc(2rem + env(safe-area-inset-top)) 1rem calc(2rem + env(safe-area-inset-bottom));
+  margin: 0;
+  padding: 0;
 }
 
 .video-panel {
@@ -275,6 +283,21 @@ button:disabled {
   font-weight: 600;
 }
 
+.active-conversation-label {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+    max-width: 720px;
+  }
+}
+
 @media (max-width: 640px) {
   .app-container {
     padding: 1rem;
@@ -311,10 +334,10 @@ button:disabled {
 @media (min-width: 768px) {
   .app-layout--with-video {
     display: grid;
-    grid-template-columns: minmax(0, 720px) minmax(240px, 420px);
+    grid-template-columns: 280px minmax(0, 720px) minmax(240px, 420px);
     align-items: start;
     gap: 1.5rem;
-    width: min(100%, 1200px);
+    width: min(100%, 1400px);
     margin: 0 auto;
     padding: 2rem 1rem;
   }

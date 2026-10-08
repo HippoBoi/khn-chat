@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useChatStore } from '../store/useChatStore';
+import { useConversationStore } from '../store/useConversationStore';
 import { PROFILE_PICTURES } from '../constants/profilePictures';
 import { getUserIdLabel } from '../utils/userIdLabel';
 import type { Message } from '../types/message';
@@ -219,20 +220,32 @@ function MessageTimestamp({ timestamp }: { timestamp: number }) {
 export function MessageList({ onYouTubeVideoSelect }: MessageListProps) {
   const messages = useChatStore((s) => s.messages);
   const setMessages = useChatStore((s) => s.setMessages);
-const messageListRef = useRef<HTMLDivElement>(null);
+  const activeConversationId = useConversationStore((s) => s.activeConversationId);
+  const messageListRef = useRef<HTMLDivElement>(null);
   const hasSnappedToHistoryRef = useRef(false);
   const isSnappedToBottomRef = useRef(true);
   const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    hasSnappedToHistoryRef.current = false;
+    setHasLoadedHistory(false);
+
     const fetchMessages = async () => {
-      const response = await api.get<MessagesResponse>('/messages');
+      const response = await api.get<MessagesResponse>(
+        `/conversations/${encodeURIComponent(activeConversationId)}/messages`,
+      );
+      if (cancelled) return;
       setMessages(response.data.messages);
       setHasLoadedHistory(true);
     };
 
     fetchMessages();
-  }, [setMessages]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setMessages, activeConversationId]);
 
   useLayoutEffect(() => {
     if (!hasLoadedHistory || !messageListRef.current) return;

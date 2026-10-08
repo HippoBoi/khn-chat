@@ -7,7 +7,10 @@ import { MessageInput } from './components/MessageInput';
 import { NotificationToast } from './components/NotificationToast';
 import { UsernameForm } from './components/UsernameForm';
 import { ProfilePicturePicker } from './components/ProfilePicturePicker';
+import { ChatList } from './components/ChatList';
+import { ChatCreationModal } from './components/ChatCreationModal';
 import { useChatStore } from './store/useChatStore';
+import { useConversationStore } from './store/useConversationStore';
 import { usePushSubscription } from './hooks/usePushSubscription';
 import { VIDEO_PLAYER_MEDIA_QUERY } from './utils/youtube';
 
@@ -37,7 +40,11 @@ function App() {
   } = usePushSubscription();
   const [theme, setTheme] = useState<ThemePreference>(getInitialTheme);
   const [selectedYouTubeVideoId, setSelectedYouTubeVideoId] = useState<string | null>(null);
+  const [isCreationOpen, setIsCreationOpen] = useState(false);
   const isChatVisible = useChatStore((s) => s.isChatVisible);
+  const activeConversationId = useConversationStore((s) => s.activeConversationId);
+  const conversations = useConversationStore((s) => s.conversations);
+  const activeConversation = conversations.find((c) => c.id === activeConversationId);
   const isDarkMode = theme === 'dark';
 
   useEffect(() => {
@@ -63,6 +70,7 @@ function App() {
 
   return (
     <div className={`app-layout${selectedYouTubeVideoId ? ' app-layout--with-video' : ''}`}>
+      <ChatList onCreateClick={() => setIsCreationOpen(true)} />
       <main className="app-container">
         <nav className="app-navbar" aria-label="Chat status">
           <Title />
@@ -89,6 +97,11 @@ function App() {
         ) : (
           <ConnectionLoading />
         )}
+        {activeConversation ? (
+          <p className="active-conversation-label" aria-live="polite">
+            {activeConversation.name}
+          </p>
+        ) : null}
         <MessageInput />
       </main>
 
@@ -117,6 +130,7 @@ function App() {
         </aside>
       ) : null}
       <NotificationToast />
+      <ChatCreationModal open={isCreationOpen} onClose={() => setIsCreationOpen(false)} />
     </div>
   );
 }

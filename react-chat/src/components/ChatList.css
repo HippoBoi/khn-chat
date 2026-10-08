@@ -1,0 +1,111 @@
+.chat-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  padding: 1rem;
+  background: var(--color-panel);
+  backdrop-filter: blur(18px);
+}
+
+.chat-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.chat-sidebar-title {
+  color: var(--color-text-strong);
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.chat-new-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  width: 44px;
+  border-radius: 12px;
+  padding: 0;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.chat-list-empty {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.chat-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-height: 0;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 0.65rem 0.8rem;
+  color: var(--color-text);
+  font-weight: 600;
+  text-align: left;
+  background: var(--color-panel-soft);
+}
+
+.chat-list-item:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.chat-list-item-active {
+  border-color: var(--color-primary);
+  color: var(--color-text-strong);
+  background: var(--color-primary-soft);
+}
+
+.chat-list-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.chat-list-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+}
+
+.chat-list-item-meta {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.chat-list-unread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  padding: 0 0.45rem;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background: var(--color-primary-strong);
+}

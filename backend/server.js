@@ -136,10 +136,18 @@ const server = http.createServer(async (req, res) => {
                 throw httpError(400, "User ID is required");
             }
 
-            const result = await database.markNotificationsRead({ userId, id: payload.id });
+            const result = await database.markNotificationsRead({
+                userId,
+                id: payload.id,
+                conversationId: payload.conversationId,
+            });
 
             if (payload.id) {
                 io.to(userRoom(userId)).emit("notifications-read", { id: payload.id });
+            } else if (payload.conversationId) {
+                io.to(userRoom(userId)).emit("notifications-read", {
+                    conversationId: payload.conversationId,
+                });
             } else {
                 io.to(userRoom(userId)).emit("notifications-read", { all: true });
             }
@@ -184,6 +192,56 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
+        if (req.method === "GET" && requestUrl.pathname === "/users") {
+            const excludeUserId = requestUrl.searchParams.get("exclude") || requestUrl.searchParams.get("excludeUserId");
+            const users = await database.listUsers({
+                excludeUserId: excludeUserId || null,
+                query: requestUrl.searchParams.get("q") || "",
+                limit: Number(requestUrl.searchParams.get("limit") || 50),
+            });
+
+            sendJson(res, 200, { users });
+            return;
+        }
+
+        if (req.method === "GET" && requestUrl.pathname === "/conversations") {
+            const userId = validateUserId(requestUrl.searchParams.get("userId"));
+
+            if (!userId) {
+                throw httpError(400, "User ID is required");
+            }
+
+            const conversations = await database.getConversationsForUser(userId);
+
+            sendJson(res, 200, { conversations });
+            return;
+        }
+
+        if (req.method === "POST" && requestUrl.pathname === "/conversations") {
+            const payload = await readJsonBody(req);
+            const conversation = await createConversation(payload);
+
+            for (const memberId of conversation.memberIds) {
+                io.to(userRoom(memberId)).emit("conversation-invite", { conversation });
+            }
+
+            sendJson(res, 201, { conversation });
+            return;
+        }
+
+        if (req.method === "GET" && requestUrl.pathname === "/notifications/unread-by-conversation") {
+            const userId = validateUserId(requestUrl.searchParams.get("userId"));
+
+            if (!userId) {
+                throw httpError(400, "User ID is required");
+            }
+
+            const unreadByConversation = await database.countUnreadByConversation(userId);
+
+            sendJson(res, 200, { unreadByConversation });
+            return;
+        }
+
         const conversationMessagesMatch = requestUrl.pathname.match(/^\/conversations\/([^/]+)\/messages$/);
         if (req.method === "GET" && conversationMessagesMatch) {
             const conversationId = decodeURIComponent(conversationMessagesMatch[1]);
@@ -220,7 +278,8 @@ const io = new Server(server, {
 
 io.on("connection", (socket) => {
     const conversationId = socket.handshake.query.conversationId || defaultConversationId;
-    socket.join(conversationRoom(conversationId));
+    socket.data.conversationId = String(conversationId);
+    socket.join(conversationRoom(socket.data.conversationId));
 
     socket.on("identify", (payload) => {
         const userId = validateUserId(payload && payload.userId);
@@ -229,6 +288,18 @@ io.on("connection", (socket) => {
             socket.data.userId = userId;
             socket.join(userRoom(userId));
         }
+    });
+
+    socket.on("join-conversation", (payload) => {
+        const nextId = String((payload && payload.conversationId) || defaultConversationId);
+        const previousId = socket.data.conversationId;
+
+        if (previousId && previousId !== nextId) {
+            socket.leave(conversationRoom(previousId));
+        }
+
+        socket.data.conversationId = nextId;
+        socket.join(conversationRoom(nextId));
     });
 
     socket.on("message", async (payload, ack) => {
@@ -266,6 +337,61 @@ async function startServer() {
 async function saveIncomingMessage(payload, conversationId) {
     const cleanMessage = validateMessagePayload(payload, conversationId);
     return database.saveMessage(cleanMessage);
+}
+
+async function createConversation(payload) {
+    if (!payload || typeof payload !== "object") {
+        throw httpError(400, "Conversation payload is required");
+    }
+
+    const name = String(payload.name || "").trim().slice(0, 80);
+
+    if (!name) {
+        throw httpError(400, "Conversation name is required");
+    }
+
+    const createdBy = validateUserId(payload.createdBy || payload.userId);
+    const memberIds = validateConversationMemberIds(payload.memberIds || payload.userIds, createdBy);
+
+    if (createdBy && !memberIds.includes(createdBy)) {
+        memberIds.push(createdBy);
+    }
+
+    if (memberIds.length === 0) {
+        throw httpError(400, "At least one member is required");
+    }
+
+    return database.createConversation({ name, memberIds, createdBy });
+}
+
+function validateConversationMemberIds(value, excludeUserId) {
+    if (value === undefined || value === null) {
+        return [];
+    }
+
+    if (!Array.isArray(value)) {
+        throw httpError(400, "memberIds must be an array");
+    }
+
+    const seen = new Set();
+    const memberIds = [];
+
+    for (const rawValue of value) {
+        if (memberIds.length >= 20) {
+            break;
+        }
+
+        const memberId = validateUserId(rawValue);
+
+        if (!memberId || seen.has(memberId)) {
+            continue;
+        }
+
+        seen.add(memberId);
+        memberIds.push(memberId);
+    }
+
+    return memberIds;
 }
 
 async function notifyRecipients(message) {
@@ -585,6 +711,34 @@ function createPostgresDatabase(config) {
                 CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx
                     ON push_subscriptions (user_id);
             `);
+
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS conversations (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    created_by UUID,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+
+                CREATE TABLE IF NOT EXISTS conversation_members (
+                    conversation_id TEXT NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+                    user_id UUID NOT NULL,
+                    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (conversation_id, user_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS conversation_members_user_idx
+                    ON conversation_members (user_id);
+            `);
+
+            await pool.query(
+                `
+                    INSERT INTO conversations (id, name)
+                    VALUES ($1, $2)
+                    ON CONFLICT (id) DO NOTHING
+                `,
+                [defaultConversationId, "General"]
+            );
         },
 
         async saveMessage(message) {
@@ -746,17 +900,20 @@ function createPostgresDatabase(config) {
             return result.rows.map(mapNotificationRow);
         },
 
-        async markNotificationsRead({ userId, id }) {
+        async markNotificationsRead({ userId, id, conversationId }) {
             if (!userId) {
                 return { updated: 0 };
             }
 
             const params = [userId];
-            let idClause = "";
+            let extraClause = "";
 
             if (id) {
                 params.push(id);
-                idClause = "AND id = $2";
+                extraClause = "AND id = $2";
+            } else if (conversationId) {
+                params.push(String(conversationId));
+                extraClause = "AND conversation_id = $2";
             }
 
             const result = await pool.query(
@@ -764,7 +921,7 @@ function createPostgresDatabase(config) {
                     UPDATE notifications
                     SET is_read = TRUE
                     WHERE user_id = $1
-                    ${idClause}
+                    ${extraClause}
                 `,
                 params
             );
@@ -836,6 +993,211 @@ function createPostgresDatabase(config) {
             );
 
             return result.rows;
+        },
+
+        async createConversation({ name, memberIds, createdBy }) {
+            const id = crypto.randomUUID();
+            const client = await pool.connect();
+
+            try {
+                await client.query("BEGIN");
+                await client.query(
+                    `
+                        INSERT INTO conversations (id, name, created_by)
+                        VALUES ($1, $2, $3)
+                    `,
+                    [id, name, createdBy]
+                );
+
+                for (const memberId of memberIds) {
+                    await client.query(
+                        `
+                            INSERT INTO conversation_members (conversation_id, user_id)
+                            VALUES ($1, $2)
+                            ON CONFLICT DO NOTHING
+                        `,
+                        [id, memberId]
+                    );
+                }
+
+                await client.query("COMMIT");
+            } catch (error) {
+                await client.query("ROLLBACK");
+                throw error;
+            } finally {
+                client.release();
+            }
+
+            const members = await this.getConversationMembers(id);
+
+            return {
+                id,
+                name,
+                createdBy,
+                createdAt: Date.now(),
+                memberIds: members,
+            };
+        },
+
+        async getConversationMembers(conversationId) {
+            const result = await pool.query(
+                `
+                    SELECT user_id
+                    FROM conversation_members
+                    WHERE conversation_id = $1
+                    ORDER BY joined_at ASC
+                `,
+                [conversationId]
+            );
+
+            return result.rows.map((row) => row.user_id);
+        },
+
+        async getConversationsForUser(userId) {
+            if (!userId) {
+                return [];
+            }
+
+            const result = await pool.query(
+                `
+                    SELECT
+                        c.id,
+                        c.name,
+                        c.created_by,
+                        c.created_at,
+                        COALESCE(m.last_message_at, NULL) AS last_message_at,
+                        (
+                            SELECT COUNT(*)
+                            FROM conversation_members cm2
+                            WHERE cm2.conversation_id = c.id
+                        )::int AS member_count
+                    FROM conversations c
+                    INNER JOIN conversation_members cm ON cm.conversation_id = c.id
+                    LEFT JOIN (
+                        SELECT conversation_id, MAX(timestamp) AS last_message_at
+                        FROM messages
+                        GROUP BY conversation_id
+                    ) m ON m.conversation_id = c.id
+                    WHERE cm.user_id = $1
+                    ORDER BY COALESCE(m.last_message_at, 0) DESC, c.created_at DESC
+                `,
+                [userId]
+            );
+
+            const memberRows = await pool.query(
+                `
+                    SELECT conversation_id, user_id
+                    FROM conversation_members
+                    WHERE conversation_id IN (
+                        SELECT conversation_id
+                        FROM conversation_members
+                        WHERE user_id = $1
+                    )
+                `,
+                [userId]
+            );
+
+            const membersByConversation = new Map();
+
+            for (const row of memberRows.rows) {
+                if (!membersByConversation.has(row.conversation_id)) {
+                    membersByConversation.set(row.conversation_id, []);
+                }
+
+                membersByConversation.get(row.conversation_id).push(row.user_id);
+            }
+
+            return result.rows.map((row) => ({
+                id: row.id,
+                name: row.name,
+                createdBy: row.created_by,
+                createdAt: new Date(row.created_at).getTime(),
+                lastMessageAt: row.last_message_at ? Number(row.last_message_at) : null,
+                memberCount: row.member_count,
+                memberIds: membersByConversation.get(row.id) || [],
+            }));
+        },
+
+        async listUsers({ excludeUserId, query, limit }) {
+            const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
+            const params = [];
+            let excludeClause = "";
+            let searchClause = "";
+
+            if (excludeUserId) {
+                params.push(excludeUserId);
+                excludeClause = `WHERE ranked.user_id != $${params.length}`;
+            }
+
+            if (query && String(query).trim()) {
+                params.push(`%${String(query).trim()}%`);
+                searchClause = `${excludeClause ? "AND" : "WHERE"} ranked.username ILIKE $${params.length}`;
+            }
+
+            params.push(safeLimit);
+
+            const result = await pool.query(
+                `
+                    WITH combined AS (
+                        SELECT user_id, sender AS username, timestamp AS seen_at
+                        FROM messages
+                        WHERE user_id IS NOT NULL
+                        UNION ALL
+                        SELECT user_id, title AS username, EXTRACT(EPOCH FROM created_at) * 1000 AS seen_at
+                        FROM notifications
+                        WHERE user_id IS NOT NULL
+                        UNION ALL
+                        SELECT user_id, NULL AS username, EXTRACT(EPOCH FROM created_at) * 1000 AS seen_at
+                        FROM push_subscriptions
+                        WHERE user_id IS NOT NULL
+                    ),
+                    ranked AS (
+                        SELECT
+                            user_id,
+                            MAX(username) AS username,
+                            MAX(seen_at) AS last_seen
+                        FROM combined
+                        GROUP BY user_id
+                    )
+                    SELECT user_id, username, last_seen
+                    FROM ranked
+                    ${excludeClause}
+                    ${searchClause}
+                    ORDER BY last_seen DESC
+                    LIMIT $${params.length}
+                `,
+                params
+            );
+
+            return result.rows.map((row) => ({
+                userId: row.user_id,
+                username: row.username || "unnamed",
+                lastSeen: row.last_seen ? Number(row.last_seen) : null,
+            }));
+        },
+
+        async countUnreadByConversation(userId) {
+            if (!userId) {
+                return {};
+            }
+
+            const result = await pool.query(
+                `
+                    SELECT conversation_id, COUNT(*)::int AS count
+                    FROM notifications
+                    WHERE user_id = $1 AND is_read = FALSE
+                    GROUP BY conversation_id
+                `,
+                [userId]
+            );
+
+            const counts = {};
+
+            for (const row of result.rows) {
+                counts[row.conversation_id] = row.count;
+            }
+
+            return counts;
         },
     };
 }

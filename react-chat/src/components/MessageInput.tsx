@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { socket } from '../services/socket';
 import { useChatStore } from '../store/useChatStore';
+import { useConversationStore } from '../store/useConversationStore';
 import { getUserIdLabel } from '../utils/userIdLabel';
 import './MessageInput.css';
 
@@ -25,6 +26,7 @@ export function MessageInput() {
   const username = useChatStore((s) => s.username);
   const messages = useChatStore((s) => s.messages);
   const isConnected = useChatStore((s) => s.isConnected);
+  const activeConversationId = useConversationStore((s) => s.activeConversationId);
   const profilePictureIndex = useChatStore((s) => s.profilePictureIndex);
   const profilePictureUrl = useChatStore((s) => s.profilePictureUrl);
   const isOverCharacterLimit = text.length > MAX_MESSAGE_CHARACTERS;
@@ -142,6 +144,7 @@ export function MessageInput() {
       profilePictureIndex,
       profilePictureUrl,
       pingedUserIds: resolvePingedUserIds(trimmed),
+      conversationId: activeConversationId,
     };
 
     socket.emit('message', message);

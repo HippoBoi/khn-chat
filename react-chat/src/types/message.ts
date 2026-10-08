@@ -7,4 +7,5 @@ export interface Message {
   profilePictureIndex: number;
   profilePictureUrl?: string | null;
   pingedUserIds?: string[];
+  conversationId?: string | null;
 }

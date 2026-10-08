@@ -18,7 +18,7 @@ interface NotificationsResponse {
   unreadCount: number;
 }
 
-type ReadStatePayload = { all?: boolean; id?: string };
+type ReadStatePayload = { all?: boolean; id?: string; conversationId?: string };
 
 interface NotificationState {
   toasts: ToastNotification[];
@@ -32,6 +32,7 @@ interface NotificationState {
   addNotification: (notification: Notification) => void;
   fetchNotifications: () => Promise<void>;
   markAllRead: () => Promise<void>;
+  markConversationRead: (conversationId: string) => Promise<void>;
   setReadState: (payload: ReadStatePayload) => void;
   setUnreadCount: (count: number) => void;
   setSoundEnabled: (enabled: boolean) => void;
@@ -66,6 +67,32 @@ export const useNotificationStore = create<NotificationState>()((set) => ({
         unreadCount: notification.isRead ? state.unreadCount : state.unreadCount + 1,
       };
     }),
+  markConversationRead: async (conversationId: string) => {
+    const userId = useChatStore.getState().userId;
+    if (!userId || !conversationId) return;
+
+    try {
+      await api.post('/notifications/read', { userId, conversationId });
+    } catch {
+      return;
+    }
+
+    set((state) => {
+      let removed = 0;
+      const notifications = state.notifications.map((notification) => {
+        if (notification.conversationId === conversationId && !notification.isRead) {
+          removed += 1;
+          return { ...notification, isRead: true };
+        }
+        return notification;
+      });
+
+      return {
+        notifications,
+        unreadCount: Math.max(0, state.unreadCount - removed),
+      };
+    });
+  },
   fetchNotifications: async () => {
     const userId = useChatStore.getState().userId;
     if (!userId) return;
@@ -102,7 +129,7 @@ export const useNotificationStore = create<NotificationState>()((set) => ({
       // Ignore mark-all-read errors.
     }
   },
-  setReadState: ({ all, id }) =>
+  setReadState: ({ all, id, conversationId }) =>
     set((state) => {
       if (all) {
         return {
@@ -111,6 +138,22 @@ export const useNotificationStore = create<NotificationState>()((set) => ({
             ...notification,
             isRead: true,
           })),
+        };
+      }
+
+      if (conversationId) {
+        let removed = 0;
+        const notifications = state.notifications.map((notification) => {
+          if (notification.conversationId === conversationId && !notification.isRead) {
+            removed += 1;
+            return { ...notification, isRead: true };
+          }
+          return notification;
+        });
+
+        return {
+          notifications,
+          unreadCount: Math.max(0, state.unreadCount - removed),
         };
       }
 

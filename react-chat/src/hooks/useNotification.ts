@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { socket } from '../services/socket';
 import { useChatStore } from '../store/useChatStore';
+import { useConversationStore } from '../store/useConversationStore';
 import { useNotificationStore } from '../store/useNotificationStore';
 import type { Notification } from '../types/notification';
 
@@ -27,7 +28,7 @@ function playNotificationSound() {
 
     oscillator.onended = () => context.close();
   } catch {
-    // Audio not supported
+    return;
   }
 }
 
@@ -36,20 +37,38 @@ export function useNotification() {
   const addToast = useNotificationStore((s) => s.addToast);
   const addNotification = useNotificationStore((s) => s.addNotification);
   const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
-  const markAllRead = useNotificationStore((s) => s.markAllRead);
+  const markConversationRead = useNotificationStore((s) => s.markConversationRead);
   const setReadState = useNotificationStore((s) => s.setReadState);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const activeConversationId = useConversationStore((s) => s.activeConversationId);
 
   useEffect(() => {
     if (!isConnected) return;
 
     fetchNotifications();
-    markAllRead();
-  }, [isConnected, fetchNotifications, markAllRead]);
+    useConversationStore.getState().fetchUnreadCounts();
+  }, [isConnected, fetchNotifications]);
+
+  useEffect(() => {
+    if (!isConnected || !activeConversationId) return;
+
+    markConversationRead(activeConversationId);
+    useConversationStore.getState().clearUnread(activeConversationId);
+  }, [isConnected, activeConversationId, markConversationRead]);
 
   useEffect(() => {
     const handleNotification = (notification: Notification) => {
       addNotification(notification);
+
+      const activeId = useConversationStore.getState().activeConversationId;
+      if (!notification.isRead && notification.conversationId !== activeId) {
+        const current = useConversationStore.getState().unreadByConversation;
+        useConversationStore.getState().setUnreadByConversation({
+          ...current,
+          [notification.conversationId]:
+            (current[notification.conversationId] ?? 0) + 1,
+        });
+      }
 
       addToast({
         type: 'message',
@@ -71,8 +90,13 @@ export function useNotification() {
   }, [addNotification, addToast]);
 
   useEffect(() => {
-    const handleReadState = (payload: { all?: boolean; id?: string }) => {
+    const handleReadState = (payload: { all?: boolean; id?: string; conversationId?: string }) => {
       setReadState(payload);
+      if (payload.all) {
+        useConversationStore.getState().setUnreadByConversation({});
+      } else if (payload.conversationId) {
+        useConversationStore.getState().clearUnread(payload.conversationId);
+      }
     };
 
     socket.on('notifications-read', handleReadState);
@@ -93,11 +117,15 @@ export function useNotification() {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         fetchNotifications();
-        markAllRead();
+        const activeId = useConversationStore.getState().activeConversationId;
+        if (activeId) {
+          markConversationRead(activeId);
+          useConversationStore.getState().clearUnread(activeId);
+        }
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchNotifications, markAllRead]);
+  }, [fetchNotifications, markConversationRead]);
 }
