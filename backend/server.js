@@ -287,6 +287,7 @@ io.on("connection", (socket) => {
         if (userId) {
             socket.data.userId = userId;
             socket.join(userRoom(userId));
+            database.ensurePublicMembership(userId).catch(() => {});
         }
     });
 
@@ -739,11 +740,55 @@ function createPostgresDatabase(config) {
                 `,
                 [defaultConversationId, "General"]
             );
+
+            await pool.query(
+                `
+                    UPDATE conversations
+                    SET name = $2
+                    WHERE id = $1 AND name = $3
+                `,
+                [defaultConversationId, "General", "Public"]
+            );
+        },
+
+        async ensurePublicMembership(userId) {
+            if (!userId) {
+                return;
+            }
+
+            await pool.query(
+                `
+                    INSERT INTO conversations (id, name)
+                    VALUES ($1, $2)
+                    ON CONFLICT (id) DO NOTHING
+                `,
+                [defaultConversationId, "General"]
+            );
+
+            await pool.query(
+                `
+                    INSERT INTO conversation_members (conversation_id, user_id)
+                    VALUES ($1, $2)
+                    ON CONFLICT DO NOTHING
+                `,
+                [defaultConversationId, userId]
+            );
         },
 
         async saveMessage(message) {
             const id = crypto.randomUUID();
             const timestamp = Date.now();
+
+            if (message.userId && message.conversationId === defaultConversationId) {
+                await pool.query(
+                    `
+                        INSERT INTO conversation_members (conversation_id, user_id)
+                        VALUES ($1, $2)
+                        ON CONFLICT DO NOTHING
+                    `,
+                    [defaultConversationId, message.userId]
+                );
+            }
 
             const result = await pool.query(
                 `
@@ -1057,6 +1102,8 @@ function createPostgresDatabase(config) {
             if (!userId) {
                 return [];
             }
+
+            await this.ensurePublicMembership(userId);
 
             const result = await pool.query(
                 `

@@ -47,9 +47,6 @@ export function ChatList({ onCreateClick }: ChatListProps) {
             >
               <span className="chat-list-item-main">
                 <span className="chat-list-item-name">{conversation.name}</span>
-                <span className="chat-list-item-meta">
-                  {conversation.memberCount} members
-                </span>
               </span>
               {unread > 0 ? (
                 <span className="chat-list-unread" aria-label={`${unread} unread`}>
