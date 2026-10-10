@@ -12,6 +12,8 @@ import { ChatCreationModal } from './components/ChatCreationModal';
 import { useChatStore } from './store/useChatStore';
 import { useConversationStore } from './store/useConversationStore';
 import { usePushSubscription } from './hooks/usePushSubscription';
+import { useAppUpdateCheck } from './hooks/useAppUpdateCheck';
+import { UpdatePrompt } from './components/UpdatePrompt';
 import { VIDEO_PLAYER_MEDIA_QUERY } from './utils/youtube';
 
 import './App.css';
@@ -41,6 +43,7 @@ function App() {
   const [theme, setTheme] = useState<ThemePreference>(getInitialTheme);
   const [selectedYouTubeVideoId, setSelectedYouTubeVideoId] = useState<string | null>(null);
   const [isCreationOpen, setIsCreationOpen] = useState(false);
+  const { isOutdated, currentVersionName, latest, dismiss } = useAppUpdateCheck();
   const isChatVisible = useChatStore((s) => s.isChatVisible);
   const activeConversationId = useConversationStore((s) => s.activeConversationId);
   const conversations = useConversationStore((s) => s.conversations);
@@ -131,6 +134,9 @@ function App() {
       ) : null}
       <NotificationToast />
       <ChatCreationModal open={isCreationOpen} onClose={() => setIsCreationOpen(false)} />
+      {isOutdated && latest ? (
+        <UpdatePrompt currentVersionName={currentVersionName} latest={latest} onLater={dismiss} />
+      ) : null}
     </div>
   );
 }
