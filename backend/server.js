@@ -19,6 +19,10 @@ const allowedClientOrigins = parseAllowedOrigins(clientUrl, nativeClientOrigins)
 const defaultConversationId = process.env.DEFAULT_CONVERSATION_ID || "public";
 const messageHistoryLimit = Number(process.env.MESSAGE_HISTORY_LIMIT || 100);
 const notificationHistoryLimit = Number(process.env.NOTIFICATION_HISTORY_LIMIT || 100);
+const appAndroidLatestVersionCode = Number(process.env.APP_ANDROID_LATEST_VERSION_CODE || 1);
+const appAndroidLatestVersionName = process.env.APP_ANDROID_LATEST_VERSION_NAME || "1";
+const appAndroidDownloadUrl = process.env.APP_ANDROID_DOWNLOAD_URL || "";
+const appAndroidUpdateMessage = process.env.APP_ANDROID_UPDATE_MESSAGE || "old version error";
 const maxMessageTextLength = 1000;
 const maxPingedUsers = 20;
 const databaseUrl = process.env.DATABASE_URL;
@@ -96,6 +100,18 @@ const server = http.createServer(async (req, res) => {
 
         if (req.method === "GET" && (requestUrl.pathname === "/" || requestUrl.pathname === "/health")) {
             sendJson(res, 200, { status: "ok" });
+            return;
+        }
+
+        if (req.method === "GET" && requestUrl.pathname === "/app-version") {
+            sendJson(res, 200, {
+                android: {
+                    latestVersionCode: appAndroidLatestVersionCode,
+                    latestVersionName: appAndroidLatestVersionName,
+                    downloadUrl: appAndroidDownloadUrl,
+                    message: appAndroidUpdateMessage,
+                },
+            });
             return;
         }
 
