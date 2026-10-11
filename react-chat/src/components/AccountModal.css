@@ -6,7 +6,8 @@
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
 }
 
 .account-modal {
@@ -37,6 +38,7 @@
 }
 
 .account-modal-close {
+  background-color: var(--color-error);
   min-height: 36px;
   width: 40px;
   border-radius: var(--cut-sm);

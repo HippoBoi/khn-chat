@@ -3,8 +3,8 @@
     top: 0;
     width: 100%;
     z-index: 20;
-    background: #ffffff;
-    border-bottom: 1px solid #000000;
+    background: var(--color-page);
+    border-bottom: 1px solid var(--color-border);
     min-height: calc(45px + env(safe-area-inset-top, 0px));
     display: grid;
     grid-template-columns: 1fr auto 1fr;

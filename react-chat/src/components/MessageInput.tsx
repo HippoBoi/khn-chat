@@ -223,11 +223,12 @@ export function MessageInput() {
         />
         <button
           type="button"
-          className="message-send-button"
+          className="message-send-button fa-solid fa-play"
           onClick={handleSend}
           disabled={!isConnected || !text.trim() || isOverCharacterLimit}
+          aria-label="Send message"
+          title="Send message"
         >
-          Send
         </button>
       </div>
       {isOverCharacterLimit && (

@@ -91,9 +91,6 @@ export function ProfilePicturePicker({
         throw new Error('Profile picture must be 2 MB or smaller.');
       }
 
-      // Upload through the backend (same origin as the API) instead of PUTting
-      // directly to S3: native app origins are rejected by the bucket's CORS
-      // policy, which surfaces as "Failed to fetch" on mobile.
       const uploadResponse = await fetch(
         `${API_BASE_URL}/uploads/profile-picture/file?fileName=${encodeURIComponent(file.name)}`,
         {
@@ -302,7 +299,7 @@ async function readUploadErrorMessage(response: Response): Promise<string> {
       return payload.error;
     }
   } catch {
-    // Fall through to the generic message below.
+    // catch
   }
 
   return 'Profile picture upload failed';

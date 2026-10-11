@@ -6,7 +6,8 @@
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
 }
 
 .chat-modal {
@@ -38,6 +39,7 @@
 }
 
 .chat-modal-close {
+  background-color: var(--color-error);
   min-height: 36px;
   width: 40px;
   border-radius: var(--cut-sm);
@@ -129,9 +131,9 @@
   letter-spacing: 0.06em;
 }
 
-.message-user-id-0 { background: #3155a4; }
-.message-user-id-1 { background: #7a3e00; }
-.message-user-id-2 { background: #006b57; }
-.message-user-id-3 { background: #7a2f68; }
-.message-user-id-4 { background: #5b3fa3; }
-.message-user-id-5 { background: #8a2533; }
+.message-user-id-0 { background: #b45309; }
+.message-user-id-1 { background: #92400e; }
+.message-user-id-2 { background: #c2410c; }
+.message-user-id-3 { background: #ea580c; }
+.message-user-id-4 { background: #d97706; }
+.message-user-id-5 { background: #991b1b; }
