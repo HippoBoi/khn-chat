@@ -1,59 +1,34 @@
 import { useEffect, useState } from 'react';
 import { useSocket } from './hooks/useSocket';
 import { useNotification } from './hooks/useNotification';
-import { ConnectionStatus } from './components/ConnectionStatus';
 import { MessageList } from './components/MessageList';
 import { MessageInput } from './components/MessageInput';
 import { NotificationToast } from './components/NotificationToast';
-import { UsernameForm } from './components/UsernameForm';
-import { ProfilePicturePicker } from './components/ProfilePicturePicker';
+import { AccountModal } from './components/AccountModal';
 import { ChatList } from './components/ChatList';
 import { ChatCreationModal } from './components/ChatCreationModal';
 import { useChatStore } from './store/useChatStore';
 import { useConversationStore } from './store/useConversationStore';
-import { usePushSubscription } from './hooks/usePushSubscription';
 import { useAppUpdateCheck } from './hooks/useAppUpdateCheck';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { VIDEO_PLAYER_MEDIA_QUERY } from './utils/youtube';
 
 import './App.css';
-import { Title } from './components/Title';
-
-type ThemePreference = 'light' | 'dark';
-
-const THEME_STORAGE_KEY = 'chat-theme';
-
-function getInitialTheme(): ThemePreference {
-  const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-  if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme;
-
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
+import Navbar from './components/Navbar';
+// import { ConnectionStatus } from './components/ConnectionStatus';
 
 function App() {
   useSocket();
   useNotification();
-  const {
-    isSupported: isPushSupported,
-    isEnabled: isPushEnabled,
-    isSubscribed: isPushSubscribed,
-    isSubscribing: isPushSubscribing,
-    toggle: togglePush,
-  } = usePushSubscription();
-  const [theme, setTheme] = useState<ThemePreference>(getInitialTheme);
   const [selectedYouTubeVideoId, setSelectedYouTubeVideoId] = useState<string | null>(null);
   const [isCreationOpen, setIsCreationOpen] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { isOutdated, currentVersionName, latest, dismiss } = useAppUpdateCheck();
   const isChatVisible = useChatStore((s) => s.isChatVisible);
   const activeConversationId = useConversationStore((s) => s.activeConversationId);
   const conversations = useConversationStore((s) => s.conversations);
   const activeConversation = conversations.find((c) => c.id === activeConversationId);
-  const isDarkMode = theme === 'dark';
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme]);
 
   useEffect(() => {
     if (!selectedYouTubeVideoId) return;
@@ -67,34 +42,31 @@ function App() {
     return () => mediaQuery.removeEventListener('change', handleViewportChange);
   }, [selectedYouTubeVideoId]);
 
-  const handleThemeToggle = () => {
-    setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
-  };
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 901px)');
+    const handleViewportChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setIsSidebarOpen(false);
+    };
+
+    mediaQuery.addEventListener('change', handleViewportChange);
+    return () => mediaQuery.removeEventListener('change', handleViewportChange);
+  }, []);
 
   return (
+    <>
+    <Navbar
+      onMenuClick={() => setIsSidebarOpen((v) => !v)}
+      sidebarOpen={isSidebarOpen}
+      onAccountClick={() => setIsAccountOpen(true)}
+    />
+    {/* <ConnectionStatus /> */}
     <div className={`app-layout${selectedYouTubeVideoId ? ' app-layout--with-video' : ''}`}>
-      <ChatList onCreateClick={() => setIsCreationOpen(true)} />
+      <ChatList
+        onCreateClick={() => setIsCreationOpen(true)}
+        open={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
       <main className="app-container">
-        <nav className="app-navbar" aria-label="Chat status">
-          <Title />
-          <div className="navbar-actions">
-            <PushToggle
-              isSupported={isPushSupported}
-              isEnabled={isPushEnabled}
-              isSubscribed={isPushSubscribed}
-              isSubscribing={isPushSubscribing}
-              onToggle={togglePush}
-            />
-            <ThemeToggle isDarkMode={isDarkMode} onToggle={handleThemeToggle} />
-            <ConnectionStatus />
-          </div>
-        </nav>
-        {isChatVisible ? (
-          <section className="profile-settings" aria-label="Profile settings">
-            <UsernameForm />
-            <ProfilePicturePicker />
-          </section>
-        ) : null}
         {isChatVisible ? (
           <MessageList onYouTubeVideoSelect={setSelectedYouTubeVideoId} />
         ) : (
@@ -134,80 +106,12 @@ function App() {
       ) : null}
       <NotificationToast />
       <ChatCreationModal open={isCreationOpen} onClose={() => setIsCreationOpen(false)} />
+      <AccountModal open={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
       {isOutdated && latest ? (
         <UpdatePrompt currentVersionName={currentVersionName} latest={latest} onLater={dismiss} />
       ) : null}
     </div>
-  );
-}
-
-interface ThemeToggleProps {
-  isDarkMode: boolean;
-  onToggle: () => void;
-}
-
-function ThemeToggle({ isDarkMode, onToggle }: ThemeToggleProps) {
-  return (
-    <button
-      type="button"
-      className="theme-toggle"
-      onClick={onToggle}
-      aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-      aria-pressed={isDarkMode}
-      title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-    >
-      <span className="theme-toggle-track" aria-hidden="true">
-        <span className="theme-toggle-thumb" />
-      </span>
-    </button>
-  );
-}
-
-interface PushToggleProps {
-  isSupported: boolean;
-  isEnabled: boolean;
-  isSubscribed: boolean;
-  isSubscribing: boolean;
-  onToggle: () => void;
-}
-
-function PushToggle({
-  isSupported,
-  isEnabled,
-  isSubscribed,
-  isSubscribing,
-  onToggle,
-}: PushToggleProps) {
-  const active = isEnabled && isSubscribed;
-  const label = isEnabled ? 'Disable push notifications' : 'Enable push notifications';
-
-  return (
-    <button
-      type="button"
-      className="push-toggle"
-      onClick={onToggle}
-      aria-label={label}
-      aria-pressed={active}
-      aria-disabled={!isSupported || isSubscribing}
-      title={isSupported ? label : 'Push notifications not supported in this browser'}
-    >
-      <span className="push-toggle-track" aria-hidden="true">
-        <span className="push-toggle-thumb">
-          <svg
-            className="push-toggle-bell"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-          </svg>
-        </span>
-      </span>
-    </button>
+    </>
   );
 }
 

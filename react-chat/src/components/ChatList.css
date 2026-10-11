@@ -4,7 +4,8 @@
   gap: 0.75rem;
   width: 100%;
   border: 1px solid var(--color-border);
-  border-radius: 18px;
+  border-radius: var(--cut-lg);
+  corner-shape: bevel;
   padding: 1rem;
   background: var(--color-panel);
   backdrop-filter: blur(18px);
@@ -29,7 +30,8 @@
   justify-content: center;
   min-height: 36px;
   width: 44px;
-  border-radius: 12px;
+  border-radius: var(--cut-sm);
+  corner-shape: bevel;
   padding: 0;
   font-size: 1.4rem;
   line-height: 1;
@@ -57,7 +59,8 @@
   gap: 0.6rem;
   min-height: 0;
   border: 1px solid transparent;
-  border-radius: 14px;
+  border-radius: var(--cut);
+  corner-shape: bevel;
   padding: 0.65rem 0.8rem;
   color: var(--color-text);
   font-weight: 600;
@@ -83,6 +86,74 @@
   flex: 1;
 }
 
+.chat-sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chat-sidebar-close {
+  display: none;
+  background: var(--color-error)
+}
+
+.chat-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .chat-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 60;
+    width: min(320px, 85vw);
+    height: 100dvh;
+    border-radius: 0;
+    border-top: none;
+    border-bottom: none;
+    border-left: none;
+    padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-105%);
+    transition: transform 250ms ease, visibility 250ms ease;
+    visibility: hidden;
+  }
+
+  .chat-sidebar.open {
+    transform: translateX(0);
+    visibility: visible;
+  }
+
+  .chat-sidebar .chat-list {
+    flex: 1;
+    max-height: none;
+    overflow-y: auto;
+  }
+
+  .chat-sidebar-backdrop.open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+  }
+
+  .chat-sidebar-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    width: 44px;
+    border-radius: var(--cut-sm);
+    corner-shape: bevel;
+    padding: 0;
+    font-size: 1.4rem;
+    line-height: 1;
+  }
+}
 .chat-list-item-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -102,7 +173,8 @@
   justify-content: center;
   min-width: 24px;
   height: 24px;
-  border-radius: 999px;
+  border-radius: var(--cut-sm);
+  corner-shape: bevel;
   padding: 0 0.45rem;
   color: #fff;
   font-size: 0.75rem;

@@ -1,0 +1,25 @@
+.sidebar-button {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  width: 40px;
+  height: 36px;
+  border-radius: var(--cut-sm);
+  corner-shape: bevel;
+  padding: 0;
+  color: var(--color-text-strong);
+  font-size: 1.1rem;
+  background: transparent;
+}
+
+.sidebar-button:hover:not(:disabled) {
+  filter: none;
+  background: var(--color-panel-soft);
+}
+
+@media (max-width: 900px) {
+  .sidebar-button {
+    display: inline-flex;
+  }
+}
