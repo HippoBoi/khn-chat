@@ -15,7 +15,7 @@ import { VIDEO_PLAYER_MEDIA_QUERY } from './utils/youtube';
 
 import './App.css';
 import Navbar from './components/Navbar';
-import { ConnectionStatus } from './components/ConnectionStatus';
+// import { ConnectionStatus } from './components/ConnectionStatus';
 
 function App() {
   useSocket();
@@ -59,7 +59,7 @@ function App() {
       sidebarOpen={isSidebarOpen}
       onAccountClick={() => setIsAccountOpen(true)}
     />
-    <ConnectionStatus />
+    {/* <ConnectionStatus /> */}
     <div className={`app-layout${selectedYouTubeVideoId ? ' app-layout--with-video' : ''}`}>
       <ChatList
         onCreateClick={() => setIsCreationOpen(true)}
