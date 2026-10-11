@@ -1,0 +1,20 @@
+.account-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+}
+
+.account-button-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 0;
+    clip-path: var(--octagon-clip);
+    object-fit: cover;
+    flex-shrink: 0;
+}
+

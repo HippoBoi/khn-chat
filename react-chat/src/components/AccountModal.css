@@ -1,0 +1,65 @@
+.account-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.account-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  width: min(100%, 560px);
+  max-height: 86vh;
+  border: 1px solid var(--color-border);
+  border-radius: var(--cut-lg);
+  corner-shape: bevel;
+  padding: 1.1rem;
+  background: var(--color-panel-solid);
+  overflow-y: auto;
+}
+
+.account-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.account-modal-title {
+  color: var(--color-text-strong);
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.account-modal-close {
+  background-color: var(--color-error);
+  min-height: 36px;
+  width: 40px;
+  border-radius: var(--cut-sm);
+  corner-shape: bevel;
+  padding: 0;
+}
+
+.account-modal .profile-settings {
+  display: grid;
+  gap: 1rem;
+}
+
+.account-modal .profile-settings .form-container {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 1rem;
+}
+
+.account-modal .profile-settings .profile-picker {
+  padding-top: 0;
+}
+
+.account-modal-save {
+  letter-spacing: 0.06em;
+}

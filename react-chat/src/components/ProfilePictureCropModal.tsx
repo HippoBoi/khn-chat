@@ -117,7 +117,7 @@ export function ProfilePictureCropModal({
             width={AVATAR_CROP_SIZE}
             height={AVATAR_CROP_SIZE}
             border={36}
-            borderRadius={AVATAR_CROP_SIZE / 2}
+            borderRadius={40}
             color={[15, 23, 42, 0.58]}
             borderColor={[255, 255, 255, 0.65]}
             scale={zoom}

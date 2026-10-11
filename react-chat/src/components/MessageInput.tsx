@@ -221,10 +221,16 @@ export function MessageInput() {
           aria-invalid={isOverCharacterLimit}
           aria-describedby={isOverCharacterLimit ? 'message-character-error' : undefined}
         />
+        <button
+          type="button"
+          className="message-send-button fa-solid fa-play"
+          onClick={handleSend}
+          disabled={!isConnected || !text.trim() || isOverCharacterLimit}
+          aria-label="Send message"
+          title="Send message"
+        >
+        </button>
       </div>
-      <button onClick={handleSend} disabled={!isConnected || !text.trim() || isOverCharacterLimit}>
-        Send
-      </button>
       {isOverCharacterLimit && (
         <p id="message-character-error" className="message-character-error">
           Your message is too long.
