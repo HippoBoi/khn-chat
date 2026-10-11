@@ -255,6 +255,8 @@ const server = http.createServer(async (req, res) => {
                 io.to(userRoom(memberId)).emit("conversation-invite", { conversation });
             }
 
+            await notifyConversationInvite(conversation);
+
             sendJson(res, 201, { conversation });
             return;
         }
@@ -428,36 +430,56 @@ function validateConversationMemberIds(value, excludeUserId) {
 async function notifyRecipients(message) {
     const recipientUserIds = message.pingedUserIds || [];
 
+    await notifyUsers({
+        conversationId: message.conversationId,
+        type: "message",
+        title: message.sender,
+        body: message.text,
+        data: {
+            messageId: message.id,
+            profilePictureUrl: message.profilePictureUrl || null,
+            profilePictureIndex: message.profilePictureIndex,
+            pingedUserIds: recipientUserIds,
+        },
+    }, recipientUserIds);
+}
+
+async function notifyConversationInvite(conversation) {
+    const recipientUserIds = conversation.memberIds.filter(
+        (userId) => userId.toLowerCase() !== conversation.createdBy?.toLowerCase()
+    );
+
+    await notifyUsers({
+        conversationId: conversation.id,
+        type: "system",
+        title: "KHN Chat",
+        body: `Invitation: ${conversation.name}`,
+        data: {},
+    }, recipientUserIds);
+}
+
+async function notifyUsers(notificationPayload, recipientUserIds) {
     if (recipientUserIds.length === 0) {
         return;
     }
 
     for (const userId of recipientUserIds) {
         const notification = await database.saveNotification({
+            ...notificationPayload,
             userId,
-            conversationId: message.conversationId,
-            type: "message",
-            title: message.sender,
-            body: message.text,
-            data: {
-                messageId: message.id,
-                profilePictureUrl: message.profilePictureUrl || null,
-                profilePictureIndex: message.profilePictureIndex,
-                pingedUserIds: recipientUserIds,
-            },
         });
 
         io.to(userRoom(userId)).emit("notification", notification);
     }
 
     if (firebaseMessaging) {
-        await sendPushNotifications(message, recipientUserIds);
+        await sendPushNotifications(notificationPayload, recipientUserIds);
     } else {
         console.log("push: firebase messaging not initialized; device push skipped.");
     }
 }
 
-async function sendPushNotifications(message, recipientUserIds) {
+async function sendPushNotifications(notification, recipientUserIds) {
     if (recipientUserIds.length === 0) {
         return;
     }
@@ -474,15 +496,15 @@ async function sendPushNotifications(message, recipientUserIds) {
         const response = await firebaseMessaging.sendEachForMulticast({
             tokens,
             notification: {
-                title: message.sender,
-                body: message.text,
+                title: notification.title,
+                body: notification.body,
             },
             data: {
-                title: message.sender,
-                body: message.text,
-                conversationId: message.conversationId,
-                messageId: message.id,
-                profilePictureUrl: message.profilePictureUrl || "",
+                title: notification.title,
+                body: notification.body,
+                conversationId: notification.conversationId,
+                ...(notification.data?.messageId ? { messageId: notification.data.messageId } : {}),
+                profilePictureUrl: notification.data?.profilePictureUrl || "",
             },
         });
 
@@ -1300,7 +1322,7 @@ function createPostgresDatabase(config) {
                         UNION ALL
                         SELECT user_id, title AS username, EXTRACT(EPOCH FROM created_at) * 1000 AS seen_at
                         FROM notifications
-                        WHERE user_id IS NOT NULL
+                        WHERE user_id IS NOT NULL AND type = 'message'
                         UNION ALL
                         SELECT user_id, NULL AS username, EXTRACT(EPOCH FROM created_at) * 1000 AS seen_at
                         FROM push_subscriptions
