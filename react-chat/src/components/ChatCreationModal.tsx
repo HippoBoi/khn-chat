@@ -46,7 +46,10 @@ export function ChatCreationModal({ open, onClose }: ChatCreationModalProps) {
           params: { exclude: userId, q: query, limit: 50 },
         });
         if (cancelled) return;
-        setUsers(response.data.users);
+        setUsers(response.data.users.filter((user) => {
+          const username = user.username?.trim();
+          return Boolean(username) && username?.toLowerCase() !== 'unnamed';
+        }));
       } catch {
         if (cancelled) return;
         setUsers([]);
