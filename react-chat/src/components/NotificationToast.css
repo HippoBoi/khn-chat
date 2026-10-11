@@ -33,7 +33,7 @@
 }
 
 .toast-item--message {
-  border-left: 3px solid var(--color-primary);
+  border-left: 3px solid var(--color-accent);
 }
 
 .toast-item--system {

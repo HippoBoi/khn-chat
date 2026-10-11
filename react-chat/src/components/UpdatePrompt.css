@@ -36,6 +36,8 @@
 }
 
 .update-prompt-close {
+  color: var(--color-muted);
+  background: var(--color-panel-raised);
   min-height: 36px;
   width: 40px;
   border-radius: var(--cut-sm);

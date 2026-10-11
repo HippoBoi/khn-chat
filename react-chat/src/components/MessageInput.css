@@ -20,10 +20,21 @@
   width: 100%;
   padding: 0;
   overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--cut-sm);
+  corner-shape: bevel;
+  background: var(--color-panel-solid);
+  transition: border-color 160ms ease, background 160ms ease;
   isolation: isolate;
+}
+
+.message-composer-input-wrap:focus-within {
+  border-color: var(--color-accent);
+}
+
+.message-composer-input-wrap:has(input.message-input-error) {
+  border-color: var(--color-danger-strong);
+  background: var(--color-danger-soft);
 }
 
 .message-composer-input-wrap input,
@@ -59,12 +70,12 @@
   height: auto;
   min-height: 104%;
   padding: 0;
-  border: 2px solid var(--color-border-strong);
+  border: 2px solid var(--color-primary-strong);
   border-radius: var(--cut-sm);
   corner-shape: bevel;
   font-size: 1.4rem;
   line-height: 1;
-  color: #1c0a05;
+  color: var(--color-on-primary);
   background: var(--color-primary-strong);
   box-shadow: none;
 }
@@ -80,7 +91,7 @@
 .message-send-button:disabled {
   opacity: 1;
   color: var(--color-muted-soft);
-  background: var(--color-border-strong);
+  background: var(--color-muted-strong);
   border-color: var(--color-border);
   cursor: not-allowed;
 }
@@ -112,7 +123,7 @@
 }
 
 .mention-option-label {
-  color: var(--color-primary-strong);
+  color: var(--color-accent-strong);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-weight: 800;
 }
@@ -126,5 +137,5 @@
 }
 
 .mention-option-selected {
-  background: var(--color-border-strong);
+  background: var(--color-accent-soft);
 }

@@ -38,7 +38,8 @@
 }
 
 .account-modal-close {
-  background-color: var(--color-error);
+  color: var(--color-muted);
+  background-color: var(--color-panel-raised);
   min-height: 36px;
   width: 40px;
   border-radius: var(--cut-sm);

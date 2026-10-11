@@ -89,7 +89,7 @@
   min-height: 0;
   width: 100%;
   padding: 0;
-  accent-color: var(--color-primary-strong);
+  accent-color: var(--color-accent);
 }
 
 .profile-crop-rotation,

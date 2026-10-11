@@ -39,7 +39,7 @@
   height: 28px;
   border-radius: 0;
   clip-path: var(--octagon-clip);
-  color: var(--color-primary-strong);
+  color: var(--color-muted);
   background: var(--color-panel-solid);
   transition: transform 180ms ease, color 180ms ease, background 180ms ease;
 }
@@ -52,10 +52,10 @@
 
 .push-toggle[aria-pressed="true"] .push-toggle-thumb {
   transform: translateX(26px);
-  color: var(--color-primary);
+  color: var(--color-accent-strong);
   background: var(--color-panel-solid);
 }
 
 .push-toggle[aria-pressed="true"] .push-toggle-track {
-  background: var(--color-primary-soft);
+  background: var(--color-accent-soft);
 }

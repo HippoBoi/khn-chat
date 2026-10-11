@@ -39,7 +39,7 @@
 }
 
 .profile-picker-option.selected {
-  border-color: var(--color-primary);
+  border-color: var(--color-accent);
   background: var(--color-panel-solid);
 }
 
@@ -55,7 +55,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-primary-strong);
+  color: var(--color-accent-strong);
   font-size: 1.7rem;
   font-weight: 800;
   line-height: 1;

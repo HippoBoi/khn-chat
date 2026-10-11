@@ -9,25 +9,30 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  --color-page: #0e0503;
-  --color-text: #f5eed6;
-  --color-text-strong: #f9eac7;
-  --color-muted: #d3cf82;
-  --color-muted-soft: #a67c52;
-  --color-panel: rgba(28, 10, 5, 0.85);
-  --color-panel-solid: #29170a;
-  --color-panel-soft: #281505;
-  --color-panel-raised: #2a180a;
-  --color-border: rgba(247, 231, 181, 0.595);
-  --color-border-strong: #4a2a12;
-  --color-primary: #fbbf24;
-  --color-primary-strong: #f9ad16;
-  --color-primary-soft: rgba(251, 146, 60, 0.22);
-  --color-danger: #ffb4aa;
-  --color-danger-strong: #ff7b72;
-  --color-danger-soft: rgba(255, 105, 95, 0.12);
-  --color-success: #4ade80;
-  --color-error: #d73c3c;
+  --color-page: #151218;
+  --color-text: #eee8e5;
+  --color-text-strong: #fff5e9;
+  --color-muted: #b6adb9;
+  --color-muted-soft: #a398aa;
+  --color-panel: rgba(30, 26, 35, 0.94);
+  --color-panel-solid: #241f2b;
+  --color-panel-soft: #211c27;
+  --color-panel-raised: #292330;
+  --color-border: rgba(223, 210, 179, 0.4);
+  --color-border-strong: #d4c7aa;
+  --color-primary: #f4b860;
+  --color-primary-strong: #eea447;
+  --color-primary-soft: rgba(244, 184, 96, 0.14);
+  --color-on-primary: #24180c;
+  --color-accent: #83c9bf;
+  --color-accent-strong: #a2dfd3;
+  --color-accent-soft: rgba(131, 201, 191, 0.12);
+  --color-accent-border: rgba(131, 201, 191, 0.48);
+  --color-danger: #ffc0b8;
+  --color-danger-strong: #f28b82;
+  --color-danger-soft: rgba(242, 139, 130, 0.12);
+  --color-success: #8dceb0;
+  --color-error: #a23f4b;
   --shadow-panel: 0 24px 80px rgba(0, 0, 0, 0.38);
   --shadow-card: 0 10px 28px rgba(0, 0, 0, 0.26);
   --cut-sm: 12px;
@@ -63,6 +68,24 @@ button,
 input {
   font: inherit;
 }
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+::selection {
+  color: var(--color-text-strong);
+  background: #395e59;
+}
+
+.message-user-id-0 { color: #ffe0ae; background: #784821; }
+.message-user-id-1 { color: #b8eee2; background: #295e59; }
+.message-user-id-2 { color: #e0d5ff; background: #574879; }
+.message-user-id-3 { color: #ffd5df; background: #794451; }
+.message-user-id-4 { color: #d1e6ff; background: #36587a; }
+.message-user-id-5 { color: #e2edc0; background: #546044; }
 
 .bevel,
 .bevel-sm,

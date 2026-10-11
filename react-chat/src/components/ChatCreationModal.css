@@ -39,7 +39,8 @@
 }
 
 .chat-modal-close {
-  background-color: var(--color-error);
+  color: var(--color-muted);
+  background-color: var(--color-panel-raised);
   min-height: 36px;
   width: 40px;
   border-radius: var(--cut-sm);
@@ -86,8 +87,8 @@
 }
 
 .chat-modal-user-selected {
-  border-color: var(--color-primary);
-  background: var(--color-primary-soft);
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-soft);
 }
 
 .chat-modal-badge {
@@ -97,7 +98,6 @@
   border-radius: var(--cut-sm);
   corner-shape: bevel;
   padding: 0.12rem 0.4rem;
-  color: #fff;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 0.68rem;
   font-weight: 800;
@@ -115,7 +115,7 @@
 
 .chat-modal-check {
   width: 20px;
-  color: var(--color-primary-strong);
+  color: var(--color-accent-strong);
   font-weight: 800;
   text-align: center;
 }
@@ -130,10 +130,3 @@
 .chat-modal-create {
   letter-spacing: 0.06em;
 }
-
-.message-user-id-0 { background: #b45309; }
-.message-user-id-1 { background: #92400e; }
-.message-user-id-2 { background: #c2410c; }
-.message-user-id-3 { background: #ea580c; }
-.message-user-id-4 { background: #d97706; }
-.message-user-id-5 { background: #991b1b; }

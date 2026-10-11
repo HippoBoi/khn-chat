@@ -69,13 +69,18 @@
 }
 
 .chat-list-item:hover:not(:disabled) {
-  border-color: var(--color-primary);
+  border-color: var(--color-accent-border);
+  background: var(--color-panel-raised);
 }
 
 .chat-list-item-active {
-  border-color: var(--color-primary);
-  color: var(--color-text-strong);
-  background: var(--color-primary-soft);
+  border-color: var(--color-accent-border);
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
+}
+
+.chat-list-item-active:hover:not(:disabled) {
+  background: var(--color-accent-soft);
 }
 
 .chat-list-item-main {
@@ -94,7 +99,8 @@
 
 .chat-sidebar-close {
   display: none;
-  background: var(--color-error)
+  color: var(--color-muted);
+  background: var(--color-panel-raised);
 }
 
 .chat-sidebar-backdrop {
@@ -176,7 +182,7 @@
   border-radius: var(--cut-sm);
   corner-shape: bevel;
   padding: 0 0.45rem;
-  color: #fff;
+  color: var(--color-on-primary);
   font-size: 0.75rem;
   font-weight: 800;
   background: var(--color-primary-strong);
