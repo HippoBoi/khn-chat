@@ -16,7 +16,8 @@
   flex-direction: column;
   gap: 0.25rem;
   border: 1px solid var(--color-border);
-  border-radius: 14px;
+  border-radius: var(--cut);
+  corner-shape: bevel;
   padding: 0.75rem 1rem;
   background: var(--color-panel);
   backdrop-filter: blur(18px);
@@ -68,7 +69,8 @@
   width: 22px;
   height: 22px;
   border: 0;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--octagon-clip);
   padding: 0;
   color: var(--color-muted);
   font-size: 1rem;

@@ -13,7 +13,8 @@
 .account-button-avatar {
     width: 28px;
     height: 28px;
-    border-radius: 50%;
+    border-radius: 0;
+    clip-path: var(--octagon-clip);
     object-fit: cover;
     flex-shrink: 0;
 }

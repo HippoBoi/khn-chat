@@ -12,7 +12,8 @@
 .connection-dot {
   width: 0.65rem;
   height: 0.65rem;
-  border-radius: 999px;
+  border-radius: 0;
+  clip-path: var(--octagon-clip);
   background: var(--color-error);
 }
 

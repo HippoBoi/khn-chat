@@ -30,6 +30,10 @@
   --color-error: #ef4444;
   --shadow-panel: 0 24px 70px rgba(55, 76, 120, 0.14);
   --shadow-card: 0 8px 20px rgba(55, 76, 120, 0.08);
+  --cut-sm: 12px;
+  --cut: 20px;
+  --cut-lg: 28px;
+  --octagon-clip: polygon(30% 0%, 80% 0%, 100% 30%, 100% 80%, 80% 100%, 30% 100%, 0% 80%, 0% 30%);
   --page-background:
   color-scheme: light;
 }
@@ -84,4 +88,35 @@ body {
 button,
 input {
   font: inherit;
+}
+
+.bevel,
+.bevel-sm,
+.bevel-lg {
+  corner-shape: bevel;
+}
+
+.bevel {
+  border-radius: var(--cut) !important;
+}
+
+.bevel-sm {
+  border-radius: var(--cut-sm) !important;
+}
+
+.bevel-lg {
+  border-radius: var(--cut-lg) !important;
+}
+
+@supports not (corner-shape: bevel) {
+  .bevel,
+  .bevel-sm,
+  .bevel-lg {
+    border-radius: 0 !important;
+  }
+}
+
+.octagon {
+  border-radius: 0 !important;
+  clip-path: var(--octagon-clip);
 }

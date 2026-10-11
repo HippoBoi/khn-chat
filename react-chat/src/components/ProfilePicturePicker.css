@@ -29,7 +29,8 @@
 .profile-picker-option {
   width: 52px;
   height: 52px;
-  border-radius: 50%;
+  border-radius: var(--cut-sm);
+  corner-shape: bevel;
   border: 2px solid transparent;
   cursor: pointer;
   padding: 3px;
@@ -46,7 +47,8 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--octagon-clip);
 }
 
 .profile-picker-upload {
@@ -84,7 +86,8 @@
 .message-profile-pic {
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: 0;
+  clip-path: var(--octagon-clip);
   object-fit: cover;
   flex-shrink: 0;
 }
