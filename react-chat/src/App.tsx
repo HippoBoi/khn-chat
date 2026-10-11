@@ -22,6 +22,7 @@ function App() {
   useNotification();
   const [selectedYouTubeVideoId, setSelectedYouTubeVideoId] = useState<string | null>(null);
   const [isCreationOpen, setIsCreationOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { isOutdated, currentVersionName, latest, dismiss } = useAppUpdateCheck();
   const isChatVisible = useChatStore((s) => s.isChatVisible);
   const activeConversationId = useConversationStore((s) => s.activeConversationId);
@@ -40,11 +41,25 @@ function App() {
     return () => mediaQuery.removeEventListener('change', handleViewportChange);
   }, [selectedYouTubeVideoId]);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 901px)');
+    const handleViewportChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setIsSidebarOpen(false);
+    };
+
+    mediaQuery.addEventListener('change', handleViewportChange);
+    return () => mediaQuery.removeEventListener('change', handleViewportChange);
+  }, []);
+
   return (
     <>
-    <Navbar />
+    <Navbar onMenuClick={() => setIsSidebarOpen((v) => !v)} sidebarOpen={isSidebarOpen} />
     <div className={`app-layout${selectedYouTubeVideoId ? ' app-layout--with-video' : ''}`}>
-      <ChatList onCreateClick={() => setIsCreationOpen(true)} />
+      <ChatList
+        onCreateClick={() => setIsCreationOpen(true)}
+        open={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
       <main className="app-container">
         {isChatVisible ? (
           <section className="profile-settings" aria-label="Profile settings">
