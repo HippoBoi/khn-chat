@@ -7,7 +7,7 @@ interface UpdatePromptProps {
   onLater: () => void;
 }
 
-export function UpdatePrompt({ currentVersionName, latest, onLater }: UpdatePromptProps) {
+export function UpdatePrompt({ latest, onLater }: UpdatePromptProps) {
   const handleUpdate = () => {
     window.open(latest.downloadUrl, '_blank', 'noopener,noreferrer');
   };
@@ -26,11 +26,6 @@ export function UpdatePrompt({ currentVersionName, latest, onLater }: UpdateProm
             X
           </button>
         </div>
-
-        <p className="update-prompt-versions">
-          {currentVersionName ? `You're on v${currentVersionName}. ` : ''}
-          {latest.latestVersionName ? `v${latest.latestVersionName} is ready.` : 'A new version is ready.'}
-        </p>
 
         {latest.message ? <p className="update-prompt-message">{latest.message}</p> : null}
 
