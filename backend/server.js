@@ -626,7 +626,7 @@ function validateProfilePictureUploadPayload(payload) {
         throw httpError(400, "Upload metadata is required");
     }
 
-    const contentType = String(payload.contentType || "").toLowerCase();
+    const contentType = normalizeProfilePictureContentType(payload.contentType, payload.fileName);
     const sizeBytes = Number(payload.sizeBytes);
     const extension = allowedProfilePictureTypes.get(contentType);
 
@@ -647,6 +647,49 @@ function validateProfilePictureUploadPayload(payload) {
         sizeBytes,
         extension,
     };
+}
+
+function normalizeProfilePictureContentType(contentType, fileName) {
+    let normalized = String(contentType || "")
+        .trim()
+        .toLowerCase()
+        .split(";")[0]
+        .trim();
+
+    const aliases = new Map([
+        ["image/jpg", "image/jpeg"],
+        ["image/pjpeg", "image/jpeg"],
+        ["image/x-jpeg", "image/jpeg"],
+        ["image/x-png", "image/png"],
+    ]);
+
+    if (aliases.has(normalized)) {
+        normalized = aliases.get(normalized);
+    }
+
+    if (!normalized || normalized === "application/octet-stream") {
+        normalized = inferProfilePictureContentTypeFromFileName(fileName) || normalized;
+    }
+
+    return normalized;
+}
+
+function inferProfilePictureContentTypeFromFileName(fileName) {
+    const extension = String(fileName || "").trim().toLowerCase().split(".").pop();
+
+    if (extension === "png") {
+        return "image/png";
+    }
+
+    if (extension === "jpg" || extension === "jpeg") {
+        return "image/jpeg";
+    }
+
+    if (extension === "webp") {
+        return "image/webp";
+    }
+
+    return null;
 }
 
 function validateProfilePictureUrl(value) {

@@ -83,6 +83,15 @@
   text-align: right;
 }
 
+.profile-picker .profile-picker-status {
+  max-width: 100%;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: right;
+}
+
 .message-profile-pic {
   width: 28px;
   height: 28px;
@@ -107,6 +116,10 @@
   }
 
   .profile-picker .profile-picker-error {
+    text-align: left;
+  }
+
+  .profile-picker .profile-picker-status {
     text-align: left;
   }
 }
