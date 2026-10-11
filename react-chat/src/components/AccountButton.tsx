@@ -18,12 +18,12 @@ export function AccountButton({ onClick }: AccountButtonProps) {
 
     return (
         <button className="account-button" type="button" onClick={onClick} aria-label="Open account settings" title={username || 'Account'}>
+            <p>{displayName}</p>
             <img
                 className="account-button-avatar"
                 src={profilePictureSrc}
                 alt={`${username || 'User'} profile picture`}
             />
-            <p>{displayName}</p>
         </button>
     );
 }

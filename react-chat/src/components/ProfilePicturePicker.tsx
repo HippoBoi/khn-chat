@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { PROFILE_PICTURES } from '../constants/profilePictures';
-import api from '../services/api';
+import { API_BASE_URL } from '../services/api';
 import { ProfilePictureCropModal } from './ProfilePictureCropModal';
 import './ProfilePicturePicker.css';
 
@@ -32,7 +32,6 @@ const MAX_PROFILE_PICTURE_UPLOAD_BYTES = 2 * 1024 * 1024;
 const MAX_PROFILE_PICTURE_INPUT_BYTES = 25 * 1024 * 1024;
 
 interface ProfilePictureUploadResponse {
-  uploadUrl: string;
   publicUrl: string;
   key: string;
 }
@@ -92,25 +91,31 @@ export function ProfilePicturePicker({
         throw new Error('Profile picture must be 2 MB or smaller.');
       }
 
-      const response = await api.post<ProfilePictureUploadResponse>('/uploads/profile-picture', {
-        fileName: file.name,
-        contentType,
-        sizeBytes: file.size,
-      });
-
-      const uploadResponse = await fetch(response.data.uploadUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': contentType,
+      // Upload through the backend (same origin as the API) instead of PUTting
+      // directly to S3: native app origins are rejected by the bucket's CORS
+      // policy, which surfaces as "Failed to fetch" on mobile.
+      const uploadResponse = await fetch(
+        `${API_BASE_URL}/uploads/profile-picture/file?fileName=${encodeURIComponent(file.name)}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': contentType,
+          },
+          body: file,
         },
-        body: file,
-      });
+      );
 
       if (!uploadResponse.ok) {
+        throw new Error(await readUploadErrorMessage(uploadResponse));
+      }
+
+      const result = (await uploadResponse.json()) as ProfilePictureUploadResponse;
+
+      if (!result.publicUrl) {
         throw new Error('Profile picture upload failed');
       }
 
-      onUploadComplete(response.data.publicUrl);
+      onUploadComplete(result.publicUrl);
       setFileToCrop(null);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Profile picture upload failed.');
@@ -287,4 +292,18 @@ async function convertHeicToJpeg(file: File): Promise<File> {
     type: 'image/jpeg',
     lastModified: Date.now(),
   });
+}
+
+async function readUploadErrorMessage(response: Response): Promise<string> {
+  try {
+    const payload = (await response.json()) as { error?: unknown };
+
+    if (payload && typeof payload.error === 'string' && payload.error.trim()) {
+      return payload.error;
+    }
+  } catch {
+    // Fall through to the generic message below.
+  }
+
+  return 'Profile picture upload failed';
 }

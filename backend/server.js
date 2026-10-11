@@ -28,6 +28,7 @@ const maxPingedUsers = 20;
 const databaseUrl = process.env.DATABASE_URL;
 const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const maxProfilePictureSizeBytes = 2 * 1024 * 1024;
+const maxProfilePictureUploadBytes = 3 * 1024 * 1024;
 const allowedProfilePictureTypes = new Map([
     ["image/png", "png"],
     ["image/jpeg", "jpg"],
@@ -118,6 +119,19 @@ const server = http.createServer(async (req, res) => {
         if (req.method === "POST" && requestUrl.pathname === "/uploads/profile-picture") {
             const payload = await readJsonBody(req);
             const upload = await createProfilePictureUpload(payload);
+
+            sendJson(res, 201, upload);
+            return;
+        }
+
+        if (req.method === "POST" && requestUrl.pathname === "/uploads/profile-picture/file") {
+            const contentTypeHeader = Array.isArray(req.headers["content-type"])
+                ? req.headers["content-type"][0]
+                : req.headers["content-type"];
+            const fileName =
+                requestUrl.searchParams.get("fileName") || requestUrl.searchParams.get("filename") || "";
+            const bytes = await readRawBody(req, maxProfilePictureUploadBytes);
+            const upload = await saveProfilePictureFile({ contentTypeHeader, fileName, bytes });
 
             sendJson(res, 201, upload);
             return;
@@ -599,6 +613,41 @@ async function createProfilePictureUpload(payload) {
     return {
         uploadUrl,
         publicUrl,
+        key: objectKey,
+    };
+}
+
+async function saveProfilePictureFile({ contentTypeHeader, fileName, bytes }) {
+    const rawContentType = String(contentTypeHeader || "").split(",")[0];
+    const contentType = normalizeProfilePictureContentType(rawContentType, fileName);
+    const extension = allowedProfilePictureTypes.get(contentType);
+
+    if (!extension) {
+        throw httpError(400, "Profile picture must be a PNG, JPG, or WebP image");
+    }
+
+    if (!bytes || bytes.length === 0) {
+        throw httpError(400, "Profile picture is empty");
+    }
+
+    if (bytes.length > maxProfilePictureSizeBytes) {
+        throw httpError(400, "Profile picture must be 2 MB or smaller");
+    }
+
+    const config = getS3ProfilePictureConfig();
+    const objectKey = `profile-pictures/${crypto.randomUUID()}.${extension}`;
+
+    await config.client.send(
+        new PutObjectCommand({
+            Bucket: config.bucket,
+            Key: objectKey,
+            Body: bytes,
+            ContentType: contentType,
+        })
+    );
+
+    return {
+        publicUrl: `${config.publicBaseUrl}/${objectKey}`,
         key: objectKey,
     };
 }
@@ -1415,6 +1464,39 @@ function setCorsHeaders(req, res) {
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+function readRawBody(req, maxBytes) {
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        let totalBytes = 0;
+        let rejected = false;
+
+        req.on("data", (chunk) => {
+            if (rejected) {
+                return;
+            }
+
+            totalBytes += chunk.length;
+
+            if (totalBytes > maxBytes) {
+                rejected = true;
+                reject(httpError(413, "Upload is too large"));
+                req.destroy();
+                return;
+            }
+
+            chunks.push(chunk);
+        });
+
+        req.on("end", () => {
+            if (!rejected) {
+                resolve(Buffer.concat(chunks));
+            }
+        });
+
+        req.on("error", reject);
+    });
 }
 
 function readJsonBody(req) {

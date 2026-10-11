@@ -59,6 +59,7 @@ function App() {
       sidebarOpen={isSidebarOpen}
       onAccountClick={() => setIsAccountOpen(true)}
     />
+    <ConnectionStatus />
     <div className={`app-layout${selectedYouTubeVideoId ? ' app-layout--with-video' : ''}`}>
       <ChatList
         onCreateClick={() => setIsCreationOpen(true)}
@@ -66,7 +67,6 @@ function App() {
         onClose={() => setIsSidebarOpen(false)}
       />
       <main className="app-container">
-        <ConnectionStatus />
         {isChatVisible ? (
           <MessageList onYouTubeVideoSelect={setSelectedYouTubeVideoId} />
         ) : (
