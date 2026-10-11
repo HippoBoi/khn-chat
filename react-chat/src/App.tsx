@@ -43,7 +43,7 @@ function App() {
   }, [selectedYouTubeVideoId]);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(min-width: 901px)');
+    const mediaQuery = window.matchMedia('(min-width: 1024px)');
     const handleViewportChange = (event: MediaQueryListEvent) => {
       if (event.matches) setIsSidebarOpen(false);
     };

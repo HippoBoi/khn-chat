@@ -26,7 +26,7 @@ export function ChatList({ onCreateClick, open = false, onClose }: ChatListProps
 
   useEffect(() => {
     if (!open) return;
-    if (!window.matchMedia('(max-width: 900px)').matches) return;
+    if (!window.matchMedia('(max-width: 1023.98px)').matches) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {

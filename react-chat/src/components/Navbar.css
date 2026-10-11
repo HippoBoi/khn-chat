@@ -6,20 +6,46 @@
     background: var(--color-page);
     border-bottom: 1px solid var(--color-border);
     min-height: calc(45px + env(safe-area-inset-top, 0px));
+}
+
+.navbar-inner {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    padding: env(safe-area-inset-top, 0px) calc(1rem + env(safe-area-inset-right, 0px)) 0 calc(1rem + env(safe-area-inset-left, 0px));
+    gap: 1rem;
+    width: 100%;
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: env(safe-area-inset-top, 0px) calc(1rem + env(safe-area-inset-right, 0px)) 0.5rem calc(1rem + env(safe-area-inset-left, 0px));
 }
 
-.navbar > :first-child {
+.navbar-side {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.navbar-side--left {
     justify-self: start;
+    justify-content: flex-start;
 }
 
-.navbar > :nth-child(2) {
+.navbar-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     justify-self: center;
+    min-width: 0;
 }
 
-.navbar > :last-child {
+.navbar-side--right {
     justify-self: end;
+    justify-content: flex-end;
+}
+
+@media (min-width: 1024px) {
+    .navbar-inner {
+        padding-left: calc(1.5rem + env(safe-area-inset-left, 0px));
+        padding-right: calc(1.5rem + env(safe-area-inset-right, 0px));
+    }
 }

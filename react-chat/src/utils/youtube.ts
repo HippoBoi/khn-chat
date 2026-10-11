@@ -1,5 +1,5 @@
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
-export const VIDEO_PLAYER_MEDIA_QUERY = '(min-width: 768px)';
+export const VIDEO_PLAYER_MEDIA_QUERY = '(min-width: 1024px)';
 
 export function getYouTubeVideoId(url: string): string | null {
   try {

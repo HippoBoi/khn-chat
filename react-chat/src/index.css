@@ -9,10 +9,10 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  --color-page: #140b04;
+  --color-page: #0e0503;
   --color-text: #f5eed6;
-  --color-text-strong: #ffedd5;
-  --color-muted: #d6a97c;
+  --color-text-strong: #f9eac7;
+  --color-muted: #d3cf82;
   --color-muted-soft: #a67c52;
   --color-panel: rgba(28, 10, 5, 0.85);
   --color-panel-solid: #29170a;

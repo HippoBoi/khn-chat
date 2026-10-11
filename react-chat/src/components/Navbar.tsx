@@ -12,9 +12,17 @@ interface NavbarProps {
 function Navbar({ onMenuClick, sidebarOpen, onAccountClick }: NavbarProps) {
     return (
         <div className="navbar">
-            <SidebarButton onClick={onMenuClick} open={sidebarOpen} />
-            <Title />
-            <AccountButton onClick={onAccountClick} />
+            <div className="navbar-inner">
+                <div className="navbar-side navbar-side--left">
+                    <SidebarButton onClick={onMenuClick} open={sidebarOpen} />
+                </div>
+                <div className="navbar-center">
+                    <Title />
+                </div>
+                <div className="navbar-side navbar-side--right">
+                    <AccountButton onClick={onAccountClick} />
+                </div>
+            </div>
         </div>
     )
 }
