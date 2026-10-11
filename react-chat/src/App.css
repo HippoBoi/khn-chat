@@ -49,7 +49,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem 1.25rem;
-  border-radius: 24px 24px 14px 14px;
   padding: 1rem 1.25rem;
 }
 
@@ -59,70 +58,6 @@
   justify-content: flex-end;
   flex: 0 0 auto;
   gap: 0.65rem;
-}
-
-.theme-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  min-height: 0;
-  width: 62px;
-  height: 36px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: 0;
-  color: var(--color-text-strong);
-  background: var(--color-panel-raised);
-}
-
-.theme-toggle:hover:not(:disabled) {
-  filter: none;
-  transform: translateY(-1px);
-  border-color: var(--color-primary);
-}
-
-.theme-toggle-track {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  padding: 3px;
-  background: var(--color-primary-soft);
-}
-
-.theme-toggle-thumb {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  color: var(--color-primary-strong);
-  background: var(--color-panel-solid);
-  transition: transform 180ms ease, color 180ms ease, background 180ms ease;
-}
-
-.theme-toggle-thumb::before {
-  content: "";
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.theme-toggle[aria-pressed="true"] .theme-toggle-thumb {
-  transform: translateX(26px);
-  color: var(--color-text-strong);
-  background: var(--color-primary);
-}
-
-.theme-toggle[aria-pressed="true"] .theme-toggle-thumb::before {
-  width: 15px;
-  height: 15px;
-  background: transparent;
-  box-shadow: inset -5px -2px 0 var(--color-text-strong);
 }
 
 .profile-settings {
@@ -141,16 +76,10 @@
   padding-top: 0;
 }
 
-.app-container > .message-list,
-.app-container > .message-composer {
-  border-radius: 18px;
-}
-
 input {
   width: 100%;
   min-height: 46px;
   border: 1px solid var(--color-border-strong);
-  border-radius: 14px;
   padding: 0.75rem 0.9rem;
   color: var(--color-text);
   background: var(--color-panel-solid);
@@ -182,7 +111,6 @@ input.message-input-error:focus {
 button {
   min-height: 46px;
   border: 0;
-  border-radius: 14px;
   padding: 0.75rem 1.05rem;
   color: #ffffff;
   font-weight: 700;
@@ -205,14 +133,12 @@ button:disabled {
 }
 
 .message-composer {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.75rem;
+  display: block;
   padding: 1rem;
 }
 
 .message-character-error {
-  grid-column: 1 / -1;
+  margin-top: 0.5rem;
   color: var(--color-danger);
   font-size: 0.9rem;
   font-weight: 600;
@@ -250,7 +176,7 @@ button:disabled {
   }
 
   .message-composer {
-    grid-template-columns: 1fr;
+    padding: 0.75rem;
   }
 }
 
