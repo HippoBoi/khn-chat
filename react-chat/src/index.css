@@ -67,10 +67,18 @@
 body {
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   background: var(--page-background);
   color: var(--color-text);
   transition: background 180ms ease, color 180ms ease;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 button,

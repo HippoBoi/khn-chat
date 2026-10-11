@@ -1,6 +1,6 @@
 .form-container {
   display: grid;
-  grid-template-columns: 1fr minmax(180px, 240px) auto;
+  grid-template-columns: 1fr;
   align-items: end;
   gap: 0.75rem;
 }

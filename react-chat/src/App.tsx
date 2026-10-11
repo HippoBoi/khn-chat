@@ -4,8 +4,7 @@ import { useNotification } from './hooks/useNotification';
 import { MessageList } from './components/MessageList';
 import { MessageInput } from './components/MessageInput';
 import { NotificationToast } from './components/NotificationToast';
-import { UsernameForm } from './components/UsernameForm';
-import { ProfilePicturePicker } from './components/ProfilePicturePicker';
+import { AccountModal } from './components/AccountModal';
 import { ChatList } from './components/ChatList';
 import { ChatCreationModal } from './components/ChatCreationModal';
 import { useChatStore } from './store/useChatStore';
@@ -16,12 +15,14 @@ import { VIDEO_PLAYER_MEDIA_QUERY } from './utils/youtube';
 
 import './App.css';
 import Navbar from './components/Navbar';
+import { ConnectionStatus } from './components/ConnectionStatus';
 
 function App() {
   useSocket();
   useNotification();
   const [selectedYouTubeVideoId, setSelectedYouTubeVideoId] = useState<string | null>(null);
   const [isCreationOpen, setIsCreationOpen] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { isOutdated, currentVersionName, latest, dismiss } = useAppUpdateCheck();
   const isChatVisible = useChatStore((s) => s.isChatVisible);
@@ -53,7 +54,11 @@ function App() {
 
   return (
     <>
-    <Navbar onMenuClick={() => setIsSidebarOpen((v) => !v)} sidebarOpen={isSidebarOpen} />
+    <Navbar
+      onMenuClick={() => setIsSidebarOpen((v) => !v)}
+      sidebarOpen={isSidebarOpen}
+      onAccountClick={() => setIsAccountOpen(true)}
+    />
     <div className={`app-layout${selectedYouTubeVideoId ? ' app-layout--with-video' : ''}`}>
       <ChatList
         onCreateClick={() => setIsCreationOpen(true)}
@@ -61,12 +66,7 @@ function App() {
         onClose={() => setIsSidebarOpen(false)}
       />
       <main className="app-container">
-        {isChatVisible ? (
-          <section className="profile-settings" aria-label="Profile settings">
-            <UsernameForm />
-            <ProfilePicturePicker />
-          </section>
-        ) : null}
+        <ConnectionStatus />
         {isChatVisible ? (
           <MessageList onYouTubeVideoSelect={setSelectedYouTubeVideoId} />
         ) : (
@@ -106,6 +106,7 @@ function App() {
       ) : null}
       <NotificationToast />
       <ChatCreationModal open={isCreationOpen} onClose={() => setIsCreationOpen(false)} />
+      <AccountModal open={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
       {isOutdated && latest ? (
         <UpdatePrompt currentVersionName={currentVersionName} latest={latest} onLater={dismiss} />
       ) : null}

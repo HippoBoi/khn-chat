@@ -1,44 +1,32 @@
-import { useState } from 'react';
-import { useChatStore } from '../store/useChatStore';
 import './UsernameForm.css';
 
-const MAX_USERNAME_LENGTH = 12;
+export const MAX_USERNAME_LENGTH = 12;
 
-export function UsernameForm() {
-  const username = useChatStore((s) => s.username);
-  const setUsername = useChatStore((s) => s.setUsername);
-  const [input, setInput] = useState('');
+interface UsernameFormProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+}
 
-  const handleSubmit = () => {
-    const trimmed = input.trim();
-    if (!trimmed || trimmed.length > MAX_USERNAME_LENGTH) return;
-    setUsername(trimmed);
-    setInput('');
-  };
-
+export function UsernameForm({ value, onChange, onSubmit }: UsernameFormProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSubmit();
+    if (e.key === 'Enter') onSubmit();
   };
 
-  const trimmedInput = input.trim();
-  const isUsernameTooLong = trimmedInput.length > MAX_USERNAME_LENGTH;
-  const canSubmit = Boolean(trimmedInput) && !isUsernameTooLong;
+  const isUsernameTooLong = value.trim().length > MAX_USERNAME_LENGTH;
 
   return (
     <div className='form-container input-container'>
-      <h3>Username: { username || 'unnamed' }</h3>
+      <h3>Username: {value.trim() || 'unnamed'}</h3>
       <input
         type="text"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Username"
         maxLength={MAX_USERNAME_LENGTH}
         aria-invalid={isUsernameTooLong}
       />
-      <button onClick={handleSubmit} disabled={!canSubmit}>
-        Change
-      </button>
     </div>
   );
 }

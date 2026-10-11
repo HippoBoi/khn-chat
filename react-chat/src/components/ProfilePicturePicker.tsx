@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { useChatStore } from '../store/useChatStore';
 import { PROFILE_PICTURES } from '../constants/profilePictures';
 import api from '../services/api';
 import { ProfilePictureCropModal } from './ProfilePictureCropModal';
@@ -14,21 +13,34 @@ interface ProfilePictureUploadResponse {
   key: string;
 }
 
-export function ProfilePicturePicker() {
+interface ProfilePicturePickerProps {
+  selectedIndex: number;
+  selectedUrl: string | null;
+  uploadedUrl: string | null;
+  isUploading: boolean;
+  onUploadingChange: (uploading: boolean) => void;
+  onPresetSelect: (index: number) => void;
+  onUploadedSelect: () => void;
+  onUploadComplete: (publicUrl: string) => void;
+}
+
+export function ProfilePicturePicker({
+  selectedIndex,
+  selectedUrl,
+  uploadedUrl,
+  isUploading,
+  onUploadingChange,
+  onPresetSelect,
+  onUploadedSelect,
+  onUploadComplete,
+}: ProfilePicturePickerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
   const [fileToCrop, setFileToCrop] = useState<File | null>(null);
-  const profilePictureIndex = useChatStore((s) => s.profilePictureIndex);
-  const profilePictureUrl = useChatStore((s) => s.profilePictureUrl);
-  const uploadedProfilePictureUrl = useChatStore((s) => s.uploadedProfilePictureUrl);
-  const setProfilePictureIndex = useChatStore((s) => s.setProfilePictureIndex);
-  const setProfilePictureUrl = useChatStore((s) => s.setProfilePictureUrl);
-  const selectUploadedProfilePicture = useChatStore((s) => s.selectUploadedProfilePicture);
 
   const handleProfilePictureSelect = (index: number) => {
     setUploadError('');
-    setProfilePictureIndex(index);
+    onPresetSelect(index);
   };
 
   const handleUploadClick = () => {
@@ -37,13 +49,13 @@ export function ProfilePicturePicker() {
 
   const handleUploadedProfilePictureSelect = () => {
     setUploadError('');
-    selectUploadedProfilePicture();
+    onUploadedSelect();
   };
 
   const uploadProfilePicture = async (file: File) => {
     try {
       setUploadError('');
-      setIsUploading(true);
+      onUploadingChange(true);
 
       const response = await api.post<ProfilePictureUploadResponse>('/uploads/profile-picture', {
         fileName: file.name,
@@ -63,13 +75,13 @@ export function ProfilePicturePicker() {
         throw new Error('Profile picture upload failed');
       }
 
-      setProfilePictureUrl(response.data.publicUrl);
+      onUploadComplete(response.data.publicUrl);
       setFileToCrop(null);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Profile picture upload failed.');
       throw error;
     } finally {
-      setIsUploading(false);
+      onUploadingChange(false);
     }
   };
 
@@ -106,24 +118,24 @@ export function ProfilePicturePicker() {
                 key={index}
                 type="button"
                 className={`profile-picker-option${
-                  !profilePictureUrl && index === profilePictureIndex ? ' selected' : ''
+                  !selectedUrl && index === selectedIndex ? ' selected' : ''
                 }`}
                 onClick={() => handleProfilePictureSelect(index)}
               >
                 <img src={pic} alt={`Profile ${index}`} />
               </button>
             ))}
-            {uploadedProfilePictureUrl ? (
+            {uploadedUrl ? (
               <button
                 type="button"
                 className={`profile-picker-option profile-picker-custom${
-                  profilePictureUrl ? ' selected' : ''
+                  selectedUrl ? ' selected' : ''
                 }`}
                 onClick={handleUploadedProfilePictureSelect}
                 aria-label="Select uploaded profile picture"
                 title="Select uploaded profile picture"
               >
-                <img src={uploadedProfilePictureUrl} alt="Uploaded profile" />
+                <img src={uploadedUrl} alt="Uploaded profile" />
               </button>
             ) : null}
             <button
