@@ -3,12 +3,13 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const { URL } = require("url");
-const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+const { DeleteObjectCommand, PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const { Pool } = require("pg");
 const { Server } = require("socket.io");
 const { initializeApp: initializeFirebaseApp, cert } = require("firebase-admin/app");
 const { getMessaging } = require("firebase-admin/messaging");
+const sharp = require("sharp");
 
 loadEnvFile();
 
@@ -29,6 +30,8 @@ const databaseUrl = process.env.DATABASE_URL;
 const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const maxProfilePictureSizeBytes = 2 * 1024 * 1024;
 const maxProfilePictureUploadBytes = 3 * 1024 * 1024;
+const maxChatImageSizeBytes = 5 * 1024 * 1024;
+const chatImageUploadAttempts = new Map();
 const allowedProfilePictureTypes = new Map([
     ["image/png", "png"],
     ["image/jpeg", "jpg"],
@@ -144,6 +147,19 @@ const server = http.createServer(async (req, res) => {
             const messages = await database.getMessages({ conversationId, limit, after });
 
             sendJson(res, 200, { messages });
+            return;
+        }
+
+        if (req.method === "POST" && requestUrl.pathname === "/uploads/chat-image/file") {
+            checkChatImageUploadRate(req.socket.remoteAddress);
+            const userId = validateUserId(requestUrl.searchParams.get("userId"));
+            const conversationId = requestUrl.searchParams.get("conversationId") || defaultConversationId;
+            if (!userId) {
+                throw httpError(400, "User ID is required");
+            }
+            const bytes = await readRawBody(req, maxChatImageSizeBytes);
+            const image = await saveChatImageFile({ bytes, userId, conversationId });
+            sendJson(res, 201, { image });
             return;
         }
 
@@ -288,10 +304,12 @@ const server = http.createServer(async (req, res) => {
         if (req.method === "POST" && conversationMessagesMatch) {
             const conversationId = decodeURIComponent(conversationMessagesMatch[1]);
             const payload = await readJsonBody(req);
-            const message = await saveIncomingMessage(payload, conversationId);
+            const { message, isNew } = await saveIncomingMessage(payload, conversationId);
 
-            io.to(conversationRoom(conversationId)).emit("message", message);
-            await notifyRecipients(message);
+            if (isNew) {
+                io.to(conversationRoom(conversationId)).emit("message", message);
+                await notifyRecipients(message);
+            }
             sendJson(res, 201, { message });
             return;
         }
@@ -337,10 +355,12 @@ io.on("connection", (socket) => {
 
     socket.on("message", async (payload, ack) => {
         try {
-            const message = await saveIncomingMessage(payload, payload.conversationId || conversationId);
+            const { message, isNew } = await saveIncomingMessage(payload, payload.conversationId || conversationId);
 
-            io.to(conversationRoom(message.conversationId)).emit("message", message);
-            await notifyRecipients(message);
+            if (isNew) {
+                io.to(conversationRoom(message.conversationId)).emit("message", message);
+                await notifyRecipients(message);
+            }
 
             if (typeof ack === "function") {
                 ack({ ok: true, message });
@@ -361,6 +381,10 @@ startServer().catch((error) => {
 async function startServer() {
     initializeFirebaseMessaging();
     await database.initialize();
+    cleanupChatImageUploads().catch((error) => console.error("Image cleanup failed:", error.message));
+    setInterval(() => {
+        cleanupChatImageUploads().catch((error) => console.error("Image cleanup failed:", error.message));
+    }, 60 * 60 * 1000).unref();
 
     server.listen(port, () => {
         console.log("running on port " + port);
@@ -434,7 +458,7 @@ async function notifyRecipients(message) {
         conversationId: message.conversationId,
         type: "message",
         title: message.sender,
-        body: message.text,
+        body: message.text || "Image",
         data: {
             messageId: message.id,
             profilePictureUrl: message.profilePictureUrl || null,
@@ -536,15 +560,21 @@ function validateMessagePayload(payload, conversationId) {
         throw httpError(400, "Message payload is required");
     }
 
-    const text = String(payload.text || "").trim().slice(0, maxMessageTextLength);
+    const text = String(payload.text || "").trim();
     const sender = String(payload.sender || "unnamed").trim();
     const userId = validateUserId(payload.userId);
     const profilePictureIndex = Number(payload.profilePictureIndex || 0);
     const profilePictureUrl = validateProfilePictureUrl(payload.profilePictureUrl);
     const pingedUserIds = validatePingedUserIds(payload.pingedUserIds, userId);
+    const imageId = validateUserId(payload.imageId);
+    const id = validateUserId(payload.id) || crypto.randomUUID();
 
-    if (!text) {
-        throw httpError(400, "Message text is required");
+    if (!text && !imageId) {
+        throw httpError(400, "Message text or an image is required");
+    }
+
+    if (imageId && !userId) {
+        throw httpError(400, "User ID is required for image messages");
     }
 
     if (text.length > maxMessageTextLength) {
@@ -552,6 +582,8 @@ function validateMessagePayload(payload, conversationId) {
     }
 
     return {
+        id,
+        imageId,
         conversationId: String(conversationId || defaultConversationId),
         text,
         sender: sender || "unnamed",
@@ -637,6 +669,73 @@ async function createProfilePictureUpload(payload) {
         publicUrl,
         key: objectKey,
     };
+}
+
+function checkChatImageUploadRate(address) {
+    const now = Date.now();
+    for (const [key, attempt] of chatImageUploadAttempts) {
+        if (now - attempt.startedAt >= 60 * 1000) {
+            chatImageUploadAttempts.delete(key);
+        }
+    }
+    const attempt = chatImageUploadAttempts.get(address) || { startedAt: now, count: 0 };
+    if (attempt.count >= 10) {
+        throw httpError(429, "Too many image uploads. Please wait a minute.");
+    }
+    attempt.count += 1;
+    chatImageUploadAttempts.set(address, attempt);
+}
+
+async function saveChatImageFile({ bytes, userId, conversationId }) {
+    if (!bytes.length || bytes.length > maxChatImageSizeBytes) {
+        throw httpError(400, "Image must be nonempty and 5 MB or smaller");
+    }
+    let output;
+    try {
+        const input = sharp(bytes, { limitInputPixels: 40 * 1000 * 1000 });
+        const metadata = await input.metadata();
+        if (!["jpeg", "png", "webp"].includes(metadata.format) || (metadata.pages || 1) > 1) {
+            throw new Error("Unsupported image");
+        }
+        output = await input.rotate()
+            .resize({ width: 2560, height: 2560, fit: "inside", withoutEnlargement: true })
+            .webp({ quality: 90 }).toBuffer({ resolveWithObject: true });
+    } catch {
+        throw httpError(400, "Use a valid, still PNG, JPG, or WebP image (up to 40 megapixels)");
+    }
+    if (output.data.length > maxChatImageSizeBytes) {
+        throw httpError(400, "Image must be 5 MB or smaller");
+    }
+    const config = getS3ProfilePictureConfig();
+    const id = crypto.randomUUID();
+    const image = {
+        id,
+        key: `chat-images/${id}.webp`,
+        contentType: "image/webp",
+        sizeBytes: output.data.length,
+        width: output.info.width,
+        height: output.info.height,
+    };
+    await config.client.send(new PutObjectCommand({
+        Bucket: config.bucket,
+        Key: image.key,
+        Body: output.data,
+        ContentType: image.contentType,
+    }));
+    try {
+        await database.saveChatImageUpload({ image, userId, conversationId });
+    } catch (error) {
+        await config.client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: image.key })).catch(() => {});
+        throw error;
+    }
+    return { ...image, url: `${config.publicBaseUrl}/${image.key}` };
+}
+
+async function cleanupChatImageUploads() {
+    await database.removeExpiredChatImageUploads(async (image) => {
+        const config = getS3ProfilePictureConfig();
+        await config.client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: image.key }));
+    });
 }
 
 async function saveProfilePictureFile({ contentTypeHeader, fileName, bytes }) {
@@ -810,6 +909,9 @@ function createPostgresDatabase(config) {
 
                 ALTER TABLE messages
                 ADD COLUMN IF NOT EXISTS pinged_user_ids JSONB;
+
+                ALTER TABLE messages
+                ADD COLUMN IF NOT EXISTS image JSONB;
             `);
 
             await pool.query(`
@@ -860,6 +962,23 @@ function createPostgresDatabase(config) {
 
                 CREATE INDEX IF NOT EXISTS conversation_members_user_idx
                     ON conversation_members (user_id);
+
+                CREATE TABLE IF NOT EXISTS chat_image_uploads (
+                    id UUID PRIMARY KEY,
+                    conversation_id TEXT NOT NULL REFERENCES conversations (id),
+                    user_id UUID NOT NULL,
+                    image JSONB NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'deleted')),
+                    message_id UUID REFERENCES messages (id) ON DELETE SET NULL
+                );
+
+                ALTER TABLE chat_image_uploads
+                ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'sent', 'deleted'));
+
+                ALTER TABLE chat_image_uploads
+                ADD COLUMN IF NOT EXISTS message_id UUID REFERENCES messages (id) ON DELETE SET NULL;
             `);
 
             await pool.query(
@@ -905,60 +1024,134 @@ function createPostgresDatabase(config) {
             );
         },
 
-        async saveMessage(message) {
-            const id = crypto.randomUUID();
-            const timestamp = Date.now();
-
-            if (message.userId && message.conversationId === defaultConversationId) {
-                await pool.query(
-                    `
-                        INSERT INTO conversation_members (conversation_id, user_id)
-                        VALUES ($1, $2)
-                        ON CONFLICT DO NOTHING
-                    `,
-                    [defaultConversationId, message.userId]
-                );
-            }
-
-            const result = await pool.query(
-                `
-                    INSERT INTO messages (
-                        id,
-                        conversation_id,
-                        text,
-                        sender,
-                        user_id,
-                        timestamp,
-                        profile_picture_index,
-                        profile_picture_url,
-                        pinged_user_ids
-                    )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                    RETURNING
-                        id,
-                        conversation_id,
-                        text,
-                        sender,
-                        user_id,
-                        timestamp,
-                        profile_picture_index,
-                        profile_picture_url,
-                        pinged_user_ids
-                `,
-                [
-                    id,
-                    message.conversationId,
-                    message.text,
-                    message.sender,
-                    message.userId,
-                    timestamp,
-                    message.profilePictureIndex,
-                    message.profilePictureUrl,
-                    JSON.stringify(message.pingedUserIds || []),
-                ]
+        async saveChatImageUpload({ image, userId, conversationId }) {
+            await pool.query(
+                "INSERT INTO chat_image_uploads (id, conversation_id, user_id, image) VALUES ($1, $2, $3, $4)",
+                [image.id, conversationId, userId, JSON.stringify(image)]
             );
+        },
 
-            return mapMessageRow(result.rows[0]);
+        async removeExpiredChatImageUploads(deleteImage) {
+            const client = await pool.connect();
+            try {
+                await client.query("BEGIN");
+                const uploads = await client.query(
+                    `SELECT id, image FROM chat_image_uploads
+                     WHERE status = 'pending' AND created_at <= NOW() - INTERVAL '24 hours'
+                     LIMIT 100 FOR UPDATE SKIP LOCKED`
+                );
+                for (const upload of uploads.rows) {
+                    await deleteImage(upload.image);
+                    await client.query("UPDATE chat_image_uploads SET status = 'deleted' WHERE id = $1", [upload.id]);
+                }
+                await client.query("COMMIT");
+            } catch (error) {
+                await client.query("ROLLBACK");
+                throw error;
+            } finally {
+                client.release();
+            }
+        },
+
+        async saveMessage(message) {
+            const id = message.id;
+            const timestamp = Date.now();
+            const client = await pool.connect();
+
+            try {
+                await client.query("BEGIN");
+                await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [id]);
+                const existing = await client.query("SELECT * FROM messages WHERE id = $1", [id]);
+                if (existing.rows.length) {
+                    const saved = mapMessageRow(existing.rows[0]);
+                    if (saved.conversationId !== message.conversationId || saved.userId !== message.userId ||
+                        saved.text !== message.text || (saved.image?.id || null) !== message.imageId) {
+                        throw httpError(409, "Message ID is already in use");
+                    }
+                    await client.query("COMMIT");
+                    return { message: saved, isNew: false };
+                }
+
+                let image = null;
+                if (message.imageId) {
+                    const upload = await client.query(
+                        `SELECT image FROM chat_image_uploads
+                         WHERE id = $1 AND conversation_id = $2 AND user_id = $3
+                         AND status = 'pending' AND created_at > NOW() - INTERVAL '24 hours' FOR UPDATE`,
+                        [message.imageId, message.conversationId, message.userId]
+                    );
+                    if (!upload.rows.length) {
+                        throw httpError(400, "Image upload expired or is unavailable. Please upload it again.");
+                    }
+                    image = upload.rows[0].image;
+                }
+
+                if (message.userId && message.conversationId === defaultConversationId) {
+                    await client.query(
+                        `
+                            INSERT INTO conversation_members (conversation_id, user_id)
+                            VALUES ($1, $2)
+                            ON CONFLICT DO NOTHING
+                        `,
+                        [defaultConversationId, message.userId]
+                    );
+                }
+
+                const result = await client.query(
+                    `
+                        INSERT INTO messages (
+                            id,
+                            conversation_id,
+                            text,
+                            sender,
+                            user_id,
+                            timestamp,
+                            profile_picture_index,
+                            profile_picture_url,
+                            pinged_user_ids,
+                            image
+                        )
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                        RETURNING
+                            id,
+                            conversation_id,
+                            text,
+                            sender,
+                            user_id,
+                            timestamp,
+                            profile_picture_index,
+                            profile_picture_url,
+                            pinged_user_ids,
+                            image
+                    `,
+                    [
+                        id,
+                        message.conversationId,
+                        message.text,
+                        message.sender,
+                        message.userId,
+                        timestamp,
+                        message.profilePictureIndex,
+                        message.profilePictureUrl,
+                        JSON.stringify(message.pingedUserIds || []),
+                        JSON.stringify(image),
+                    ]
+                );
+
+                if (message.imageId) {
+                    await client.query(
+                        "UPDATE chat_image_uploads SET status = 'sent', message_id = $2 WHERE id = $1",
+                        [message.imageId, id]
+                    );
+                }
+                await client.query("COMMIT");
+                return { message: mapMessageRow(result.rows[0]), isNew: true };
+            } catch (error) {
+                await client.query("ROLLBACK");
+                throw error;
+            } finally {
+                client.release();
+            }
         },
 
         async getMessages({ conversationId, limit, after }) {
@@ -983,7 +1176,8 @@ function createPostgresDatabase(config) {
                         timestamp,
                         profile_picture_index,
                         profile_picture_url,
-                        pinged_user_ids
+                        pinged_user_ids,
+                        image
                     FROM messages
                     WHERE conversation_id = $1
                     ${afterClause}
@@ -1390,6 +1584,10 @@ function mapMessageRow(row) {
         profilePictureIndex: row.profile_picture_index,
         profilePictureUrl: row.profile_picture_url,
         pingedUserIds: row.pinged_user_ids || [],
+        image: row.image ? {
+            ...row.image,
+            url: `${normalizeUrlBase(process.env.S3_PROFILE_PICTURES_PUBLIC_BASE_URL)}/${row.image.key}`,
+        } : null,
     };
 }
 

@@ -80,7 +80,7 @@ function App() {
             {activeConversation.name}
           </p>
         ) : null}
-        <MessageInput />
+        <MessageInput key={activeConversationId} />
       </main>
 
       {selectedYouTubeVideoId ? (

@@ -174,3 +174,42 @@
 .mention-option-selected {
   background: var(--color-accent-soft);
 }
+
+.action-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.message-image-preview,
+.message-upload-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--cut-sm);
+  background: var(--color-panel-solid);
+}
+
+.message-image-preview img {
+  max-width: min(180px, 60%);
+  max-height: 120px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.message-image-preview button,
+.message-upload-status button {
+  padding: 0.4rem 0.65rem;
+  color: var(--color-text);
+  background: var(--color-panel-raised);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+}
+
+.message-upload-error {
+  margin: 0.5rem 0 0;
+  color: var(--color-danger);
+}
