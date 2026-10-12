@@ -16,7 +16,7 @@ export function PushToggle({
   onToggle,
 }: PushToggleProps) {
   const active = isEnabled && isSubscribed;
-  const label = isEnabled ? 'Disable push notifications' : 'Enable push notifications';
+  const label = active ? 'Disable push notifications' : 'Enable push notifications';
 
   return (
     <button
@@ -26,6 +26,7 @@ export function PushToggle({
       aria-label={label}
       aria-pressed={active}
       aria-disabled={!isSupported || isSubscribing}
+      disabled={!isSupported || isSubscribing}
       title={isSupported ? label : 'Push notifications not supported in this browser'}
     >
       <span className="push-toggle-track" aria-hidden="true">

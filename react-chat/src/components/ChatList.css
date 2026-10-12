@@ -160,6 +160,24 @@
     line-height: 1;
   }
 }
+.chat-sidebar-bottombar {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: auto;
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.75rem;
+}
+
+.chat-sidebar-bottom-button {
+  flex: 1;
+  gap: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+  background-color: var(--color-panel);
+}
+
 .chat-list-item-name {
   overflow: hidden;
   text-overflow: ellipsis;

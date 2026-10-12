@@ -42,6 +42,12 @@ class WebPushService implements PushService {
   }
 
   async subscribe(userId: string): Promise<boolean> {
+    if (!getIsPushSupported() || !this.canRequestPermission()) return false;
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return false;
+    }
+
     const messaging = await getFirebaseMessaging();
     if (!messaging) return false;
 
@@ -84,9 +90,10 @@ class WebPushService implements PushService {
 
   onForegroundMessage(callback: (message: PushMessage) => void): () => void {
     let remove: (() => void) | undefined;
+    let cancelled = false;
 
     getFirebaseMessaging().then((messaging) => {
-      if (!messaging) return;
+      if (!messaging || cancelled) return;
 
       remove = onMessage(messaging, (payload) => {
         const title = payload.data?.title || payload.notification?.title;
@@ -97,7 +104,10 @@ class WebPushService implements PushService {
       });
     });
 
-    return () => remove?.();
+    return () => {
+      cancelled = true;
+      remove?.();
+    };
   }
 
   onNotificationTap(): () => void {

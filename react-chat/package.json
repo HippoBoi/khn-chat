@@ -17,7 +17,8 @@
     "cap:install:release": "%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb install -r android/app/build/outputs/apk/release/app-release.apk",
     "cap:install": "%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb install -r android/app/build/outputs/apk/debug/app-debug.apk",
     "cap:launch": "%LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb shell am start -n com.hippo.khnchat/.MainActivity",
-    "cap:deploy": "npm run build && cap sync android && cd android && gradlew.bat :app:assembleDebug && cd .. && %LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb install -r android/app/build/outputs/apk/debug/app-debug.apk && %LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb shell am start -n com.hippo.khnchat/.MainActivity"
+    "cap:deploy": "npm run build && cap sync android && cd android && gradlew.bat :app:assembleDebug && cd .. && %LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb install -r android/app/build/outputs/apk/debug/app-debug.apk && %LOCALAPPDATA%\\Android\\Sdk\\platform-tools\\adb shell am start -n com.hippo.khnchat/.MainActivity",
+    "cap:deploy:release": "npm run cap:build && npm run cap:assemble:release && npm run cap:install:release && npm run cap:launch"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
