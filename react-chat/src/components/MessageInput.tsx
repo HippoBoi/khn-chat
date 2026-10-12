@@ -209,6 +209,11 @@ export function MessageInput() {
             ))}
           </ul>
         )}
+        <button
+          type="button"
+          className='action-button'>
+          <i className="fa-solid fa-image"></i>
+        </button>
         <input
           ref={inputRef}
           type="text"

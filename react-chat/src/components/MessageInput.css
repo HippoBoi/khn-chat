@@ -49,12 +49,47 @@
   display: block;
   width: 100%;
   min-height: 3.5rem;
-  padding: 0.9rem 5rem 0.9rem 1rem;
+  box-sizing: border-box;
+  padding: 0.9rem 4.25rem 0.9rem 4.0rem;
   border: 0;
   border-radius: 0;
   background: transparent;
   outline: none;
   box-shadow: none;
+}
+
+.action-button {
+  grid-area: 1 / 1;
+  transform: translateX(-1px) translateY(-1px);
+  place-self: stretch start;
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: auto;
+  min-height: 104%;
+  padding: 0;
+  border: 2px solid var(--color-primary-strong);
+  border-radius: var(--cut-sm);
+  border-color: var(--color-border);
+  corner-shape: bevel;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--color-muted-soft);
+  background: var(--color-muted-strong);
+  box-shadow: none;
+}
+
+.action-button:hover:not(:disabled) {
+  filter: brightness(1.5);
+}
+
+.action-button:active:not(:disabled) {
+  transform: translateX(-1px) translateY(-1px);
+  background: var(--color-muted-soft);
+  color: var(--color-border);
 }
 
 .message-send-button {
@@ -66,7 +101,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 4.0rem;
+  width: 3.5rem;
   height: auto;
   min-height: 104%;
   padding: 0;
