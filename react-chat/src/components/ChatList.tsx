@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useConversationStore } from '../store/useConversationStore';
+import { SettingsModal } from './SettingsModal';
 import './ChatList.css';
 
 interface ChatListProps {
@@ -14,6 +15,7 @@ export function ChatList({ onCreateClick, open = false, onClose }: ChatListProps
   const setActiveConversation = useConversationStore((s) => s.setActiveConversation);
   const unreadByConversation = useConversationStore((s) => s.unreadByConversation);
   const isLoading = useConversationStore((s) => s.isLoading);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (!open || !onClose) return;
@@ -104,7 +106,21 @@ export function ChatList({ onCreateClick, open = false, onClose }: ChatListProps
           );
         })}
       </div>
+      <div className="chat-sidebar-bottombar">
+        <button
+          type="button"
+          className="chat-sidebar-bottom-button"
+          onClick={() => {
+            setIsSettingsOpen(true);
+            onClose?.();
+          }}
+        >
+          <i className='fa-solid fa-gear'></i>
+          Settings
+        </button>
+      </div>
       </aside>
+      <SettingsModal open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </>
   );
 }

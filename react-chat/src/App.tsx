@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSocket } from './hooks/useSocket';
 import { useNotification } from './hooks/useNotification';
+import { usePushSubscription } from './hooks/usePushSubscription';
+import { PushSubscriptionContext } from './context/PushSubscriptionContext';
 import { MessageList } from './components/MessageList';
 import { MessageInput } from './components/MessageInput';
 import { NotificationToast } from './components/NotificationToast';
@@ -20,6 +22,7 @@ import Navbar from './components/Navbar';
 function App() {
   useSocket();
   useNotification();
+  const pushSubscription = usePushSubscription();
   const [selectedYouTubeVideoId, setSelectedYouTubeVideoId] = useState<string | null>(null);
   const [isCreationOpen, setIsCreationOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
@@ -53,7 +56,7 @@ function App() {
   }, []);
 
   return (
-    <>
+    <PushSubscriptionContext.Provider value={pushSubscription}>
     <Navbar
       onMenuClick={() => setIsSidebarOpen((v) => !v)}
       sidebarOpen={isSidebarOpen}
@@ -111,7 +114,7 @@ function App() {
         <UpdatePrompt currentVersionName={currentVersionName} latest={latest} onLater={dismiss} />
       ) : null}
     </div>
-    </>
+    </PushSubscriptionContext.Provider>
   );
 }
 

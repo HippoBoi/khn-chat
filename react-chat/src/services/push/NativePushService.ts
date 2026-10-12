@@ -67,7 +67,7 @@ class NativePushService implements PushService {
 
     let permission = await this.checkPermission();
 
-    if (permission.receive === 'prompt') {
+    if (permission.receive === 'prompt' || permission.receive === 'prompt-with-rationale') {
       permission = await this.requestPermission();
     }
 
