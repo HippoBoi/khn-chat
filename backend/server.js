@@ -25,6 +25,7 @@ const appAndroidLatestVersionName = process.env.APP_ANDROID_LATEST_VERSION_NAME 
 const appAndroidDownloadUrl = process.env.APP_ANDROID_DOWNLOAD_URL || "";
 const appAndroidUpdateMessage = process.env.APP_ANDROID_UPDATE_MESSAGE || "old version error";
 const maxMessageTextLength = 1000;
+const maxUsernameLength = 12;
 const maxPingedUsers = 20;
 const databaseUrl = process.env.DATABASE_URL;
 const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -243,10 +244,57 @@ const server = http.createServer(async (req, res) => {
             const users = await database.listUsers({
                 excludeUserId: excludeUserId || null,
                 query: requestUrl.searchParams.get("q") || "",
+                by: requestUrl.searchParams.get("by") || "all",
                 limit: Number(requestUrl.searchParams.get("limit") || 50),
             });
 
             sendJson(res, 200, { users });
+            return;
+        }
+
+        const userIdMatch = requestUrl.pathname.match(/^\/users\/([^/]+)$/);
+        if (userIdMatch && (req.method === "PUT" || req.method === "POST")) {
+            const pathUserId = validateUserId(decodeURIComponent(userIdMatch[1]));
+
+            if (!pathUserId) {
+                throw httpError(400, "User ID must be a valid UUID");
+            }
+
+            const payload = await readJsonBody(req);
+            const username = validateUsername(payload.username);
+
+            if (payload.userId) {
+                const bodyUserId = validateUserId(payload.userId);
+
+                if (bodyUserId && bodyUserId !== pathUserId) {
+                    throw httpError(400, "User ID mismatch");
+                }
+            }
+
+            const user = await database.upsertUser({
+                userId: pathUserId,
+                username: username || undefined,
+                lastSeen: Date.now(),
+            });
+
+            sendJson(res, 200, { user });
+            return;
+        }
+
+        if (userIdMatch && req.method === "GET") {
+            const pathUserId = validateUserId(decodeURIComponent(userIdMatch[1]));
+
+            if (!pathUserId) {
+                throw httpError(400, "User ID must be a valid UUID");
+            }
+
+            const user = await database.getUser(pathUserId);
+
+            if (!user) {
+                throw httpError(404, "User not found");
+            }
+
+            sendJson(res, 200, { user });
             return;
         }
 
@@ -332,11 +380,26 @@ io.on("connection", (socket) => {
     socket.join(conversationRoom(socket.data.conversationId));
 
     socket.on("identify", (payload) => {
-        const userId = validateUserId(payload && payload.userId);
+        let userId = null;
+
+        try {
+            userId = validateUserId(payload && payload.userId);
+        } catch {
+            return;
+        }
 
         if (userId) {
             socket.data.userId = userId;
             socket.join(userRoom(userId));
+            let username = null;
+
+            try {
+                username = validateUsername(payload && payload.username, { allowEmpty: true });
+            } catch {
+                username = null;
+            }
+
+            database.upsertUser({ userId, username: username || undefined, lastSeen: Date.now() }).catch(() => {});
             database.ensurePublicMembership(userId).catch(() => {});
         }
     });
@@ -606,6 +669,28 @@ function validateUserId(value) {
     }
 
     return userId;
+}
+
+function validateUsername(value, options = {}) {
+    if (value === undefined || value === null) {
+        if (options.allowEmpty) {
+            return null;
+        }
+
+        return null;
+    }
+
+    const username = String(value).trim();
+
+    if (!username) {
+        return null;
+    }
+
+    if (username.length > maxUsernameLength) {
+        throw httpError(400, `Username must be ${maxUsernameLength} characters or fewer`);
+    }
+
+    return username;
 }
 
 function validatePingedUserIds(value, excludeUserId) {
@@ -998,6 +1083,107 @@ function createPostgresDatabase(config) {
                 `,
                 [defaultConversationId, "General", "Public"]
             );
+
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS users (
+                    id UUID PRIMARY KEY,
+                    username TEXT NOT NULL DEFAULT 'unnamed',
+                    last_seen BIGINT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+
+                CREATE INDEX IF NOT EXISTS users_username_idx
+                    ON users (username);
+
+                CREATE INDEX IF NOT EXISTS users_last_seen_idx
+                    ON users (last_seen DESC);
+            `);
+
+            await pool.query(`
+                INSERT INTO users (id, username, last_seen)
+                SELECT
+                    user_id AS id,
+                    COALESCE(MAX(username), 'unnamed') AS username,
+                    COALESCE(MAX(seen_at), 0)::BIGINT AS last_seen
+                FROM (
+                    SELECT user_id, sender AS username, timestamp AS seen_at
+                    FROM messages
+                    WHERE user_id IS NOT NULL
+                    UNION ALL
+                    SELECT user_id, title AS username, EXTRACT(EPOCH FROM created_at) * 1000 AS seen_at
+                    FROM notifications
+                    WHERE user_id IS NOT NULL AND type = 'message'
+                    UNION ALL
+                    SELECT user_id, NULL AS username, EXTRACT(EPOCH FROM created_at) * 1000 AS seen_at
+                    FROM push_subscriptions
+                    WHERE user_id IS NOT NULL
+                ) AS legacy
+                GROUP BY user_id
+                ON CONFLICT (id) DO NOTHING
+            `);
+        },
+
+        async upsertUser({ userId, username, lastSeen, client }) {
+            if (!userId) {
+                return null;
+            }
+
+            const runner = client || pool;
+            const cleanUsername = username ? String(username).trim() : "";
+            const seenAt = Number.isFinite(Number(lastSeen)) ? Number(lastSeen) : Date.now();
+
+            if (cleanUsername) {
+                const result = await runner.query(
+                    `
+                        INSERT INTO users (id, username, last_seen, updated_at)
+                        VALUES ($1, $2, $3, NOW())
+                        ON CONFLICT (id) DO UPDATE
+                            SET username = EXCLUDED.username,
+                                last_seen = GREATEST(users.last_seen, EXCLUDED.last_seen),
+                                updated_at = NOW()
+                        RETURNING id, username, last_seen
+                    `,
+                    [userId, cleanUsername, seenAt]
+                );
+
+                return mapUserRow(result.rows[0]);
+            }
+
+            const result = await runner.query(
+                `
+                    INSERT INTO users (id, last_seen)
+                    VALUES ($1, $2)
+                    ON CONFLICT (id) DO UPDATE
+                        SET last_seen = GREATEST(users.last_seen, EXCLUDED.last_seen),
+                            updated_at = NOW()
+                    RETURNING id, username, last_seen
+                `,
+                [userId, seenAt]
+            );
+
+            return mapUserRow(result.rows[0]);
+        },
+
+        async getUser(userId) {
+            if (!userId) {
+                return null;
+            }
+
+            const result = await pool.query(
+                `
+                    SELECT id, username, last_seen
+                    FROM users
+                    WHERE id = $1
+                `,
+                [userId]
+            );
+
+            if (!result.rows.length) {
+                return null;
+            }
+
+            return mapUserRow(result.rows[0]);
         },
 
         async ensurePublicMembership(userId) {
@@ -1022,6 +1208,8 @@ function createPostgresDatabase(config) {
                 `,
                 [defaultConversationId, userId]
             );
+
+            await this.upsertUser({ userId, lastSeen: Date.now() });
         },
 
         async saveChatImageUpload({ image, userId, conversationId }) {
@@ -1144,6 +1332,16 @@ function createPostgresDatabase(config) {
                         [message.imageId, id]
                     );
                 }
+
+                if (message.userId) {
+                    await this.upsertUser({
+                        userId: message.userId,
+                        username: message.sender && message.sender !== "unnamed" ? message.sender : undefined,
+                        lastSeen: timestamp,
+                        client,
+                    });
+                }
+
                 await client.query("COMMIT");
                 return { message: mapMessageRow(result.rows[0]), isNew: true };
             } catch (error) {
@@ -1226,6 +1424,10 @@ function createPostgresDatabase(config) {
                     JSON.stringify(notification.data || {}),
                 ]
             );
+
+            if (notification.userId) {
+                await this.upsertUser({ userId: notification.userId, lastSeen: Date.now() }).catch(() => {});
+            }
 
             return mapNotificationRow(result.rows[0]);
         },
@@ -1325,6 +1527,10 @@ function createPostgresDatabase(config) {
                 `,
                 [crypto.randomUUID(), userId, token, conversationId]
             );
+
+            if (userId) {
+                await this.upsertUser({ userId, lastSeen: Date.now() }).catch(() => {});
+            }
         },
 
         async removePushSubscription({ userId, token }) {
@@ -1386,6 +1592,19 @@ function createPostgresDatabase(config) {
                             ON CONFLICT DO NOTHING
                         `,
                         [id, memberId]
+                    );
+                }
+
+                for (const memberId of memberIds) {
+                    await client.query(
+                        `
+                            INSERT INTO users (id, last_seen)
+                            VALUES ($1, $2)
+                            ON CONFLICT (id) DO UPDATE
+                                SET last_seen = GREATEST(users.last_seen, EXCLUDED.last_seen),
+                                    updated_at = NOW()
+                        `,
+                        [memberId, Date.now()]
                     );
                 }
 
@@ -1489,7 +1708,7 @@ function createPostgresDatabase(config) {
             }));
         },
 
-        async listUsers({ excludeUserId, query, limit }) {
+        async listUsers({ excludeUserId, query, by, limit }) {
             const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
             const params = [];
             let excludeClause = "";
@@ -1497,41 +1716,43 @@ function createPostgresDatabase(config) {
 
             if (excludeUserId) {
                 params.push(excludeUserId);
-                excludeClause = `WHERE ranked.user_id != $${params.length}`;
+                excludeClause = `WHERE users.id != $${params.length}`;
             }
 
             if (query && String(query).trim()) {
-                params.push(`%${String(query).trim()}%`);
-                searchClause = `${excludeClause ? "AND" : "WHERE"} ranked.username ILIKE $${params.length}`;
+                const trimmed = String(query).trim();
+                const likePattern = `%${trimmed}%`;
+                const stripped = trimmed.replace(/-/g, "");
+                const strippedPattern = `%${stripped}%`;
+                const mode = String(by || "all").toLowerCase();
+                const matchUsername = mode !== "id" && mode !== "userid" && mode !== "user_id";
+                const matchId = mode !== "username" && mode !== "name";
+                const conditions = [];
+
+                if (matchUsername) {
+                    params.push(likePattern);
+                    conditions.push(`users.username ILIKE $${params.length}`);
+                }
+
+                if (matchId) {
+                    params.push(likePattern);
+                    conditions.push(`users.id::TEXT ILIKE $${params.length}`);
+                    // Allow pasting IDs without hyphens (UUIDs contain hyphens in DB).
+                    params.push(strippedPattern);
+                    conditions.push(`REPLACE(users.id::TEXT, '-', '') ILIKE $${params.length}`);
+                }
+
+                if (conditions.length > 0) {
+                    searchClause = `${excludeClause ? "AND" : "WHERE"} (${conditions.join(" OR ")})`;
+                }
             }
 
             params.push(safeLimit);
 
             const result = await pool.query(
                 `
-                    WITH combined AS (
-                        SELECT user_id, sender AS username, timestamp AS seen_at
-                        FROM messages
-                        WHERE user_id IS NOT NULL
-                        UNION ALL
-                        SELECT user_id, title AS username, EXTRACT(EPOCH FROM created_at) * 1000 AS seen_at
-                        FROM notifications
-                        WHERE user_id IS NOT NULL AND type = 'message'
-                        UNION ALL
-                        SELECT user_id, NULL AS username, EXTRACT(EPOCH FROM created_at) * 1000 AS seen_at
-                        FROM push_subscriptions
-                        WHERE user_id IS NOT NULL
-                    ),
-                    ranked AS (
-                        SELECT
-                            user_id,
-                            MAX(username) AS username,
-                            MAX(seen_at) AS last_seen
-                        FROM combined
-                        GROUP BY user_id
-                    )
-                    SELECT user_id, username, last_seen
-                    FROM ranked
+                    SELECT id AS user_id, username, last_seen
+                    FROM users
                     ${excludeClause}
                     ${searchClause}
                     ORDER BY last_seen DESC
@@ -1570,6 +1791,18 @@ function createPostgresDatabase(config) {
 
             return counts;
         },
+    };
+}
+
+function mapUserRow(row) {
+    if (!row) {
+        return null;
+    }
+
+    return {
+        userId: row.id,
+        username: row.username || "unnamed",
+        lastSeen: row.last_seen ? Number(row.last_seen) : null,
     };
 }
 
@@ -1682,7 +1915,7 @@ function setCorsHeaders(req, res) {
     }
 
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 

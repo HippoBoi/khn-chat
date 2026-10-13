@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import api from '../services/api';
 import { useChatStore } from '../store/useChatStore';
 import { UsernameForm, MAX_USERNAME_LENGTH } from './UsernameForm';
 import { ProfilePicturePicker } from './ProfilePicturePicker';
@@ -50,6 +51,7 @@ export function AccountModal({ open, onClose }: AccountModalProps) {
 }
 
 function AccountModalBody({ onClose }: { onClose: () => void }) {
+  const userId = useChatStore((s) => s.userId);
   const username = useChatStore((s) => s.username);
   const profilePictureIndex = useChatStore((s) => s.profilePictureIndex);
   const profilePictureUrl = useChatStore((s) => s.profilePictureUrl);
@@ -73,6 +75,11 @@ function AccountModalBody({ onClose }: { onClose: () => void }) {
 
     if (trimmedUsername && !isUsernameTooLong && trimmedUsername !== username) {
       setUsername(trimmedUsername);
+      if (userId) {
+        api
+          .put(`/users/${encodeURIComponent(userId)}`, { username: trimmedUsername })
+          .catch(() => {});
+      }
     }
 
     if (draftUrl) {

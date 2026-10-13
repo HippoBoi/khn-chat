@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSocket } from './hooks/useSocket';
+import { useEnsureUser } from './hooks/useEnsureUser';
 import { useNotification } from './hooks/useNotification';
 import { usePushSubscription } from './hooks/usePushSubscription';
 import { PushSubscriptionContext } from './context/PushSubscriptionContext';
@@ -21,6 +22,7 @@ import Navbar from './components/Navbar';
 
 function App() {
   useSocket();
+  useEnsureUser();
   useNotification();
   const pushSubscription = usePushSubscription();
   const [selectedYouTubeVideoId, setSelectedYouTubeVideoId] = useState<string | null>(null);

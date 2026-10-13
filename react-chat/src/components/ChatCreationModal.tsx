@@ -15,11 +15,14 @@ interface ChatCreationModalProps {
   onClose: () => void;
 }
 
+type UserFilterMode = 'all' | 'username' | 'userId';
+
 export function ChatCreationModal({ open, onClose }: ChatCreationModalProps) {
   const userId = useChatStore((s) => s.userId);
   const createConversation = useConversationStore((s) => s.createConversation);
   const [name, setName] = useState('');
   const [query, setQuery] = useState('');
+  const [filterBy, setFilterBy] = useState<UserFilterMode>('all');
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
@@ -30,6 +33,7 @@ export function ChatCreationModal({ open, onClose }: ChatCreationModalProps) {
     if (!open) return;
     setName('');
     setQuery('');
+    setFilterBy('all');
     setSelectedIds([]);
     setError(null);
   }, [open]);
@@ -43,7 +47,7 @@ export function ChatCreationModal({ open, onClose }: ChatCreationModalProps) {
     const timerId = window.setTimeout(async () => {
       try {
         const response = await api.get<UsersResponse>('/users', {
-          params: { exclude: userId, q: query, limit: 50 },
+          params: { exclude: userId, q: query, by: filterBy, limit: 50 },
         });
         if (cancelled) return;
         setUsers(response.data.users.filter((user) => {
@@ -62,7 +66,7 @@ export function ChatCreationModal({ open, onClose }: ChatCreationModalProps) {
       cancelled = true;
       window.clearTimeout(timerId);
     };
-  }, [open, query, userId]);
+  }, [open, query, filterBy, userId]);
 
   const toggleSelected = (id: string) => {
     setSelectedIds((current) =>
@@ -120,15 +124,36 @@ export function ChatCreationModal({ open, onClose }: ChatCreationModalProps) {
             onChange={(event) => setName(event.target.value)}
           />
         </label>
-        <label className="chat-modal-label">
+        <div className="chat-modal-label">
           Add users
           <input
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Ramon..."
+            placeholder={
+              filterBy === 'userId' ? 'Paste a user ID...' : 'Ramon or user ID...'
+            }
           />
-        </label>
+          <div className="chat-modal-filter" role="group" aria-label="Filter by">
+            {(
+              [
+                { value: 'all', label: 'All' },
+                { value: 'username', label: 'Name' },
+                { value: 'userId', label: 'ID' },
+              ] as const
+            ).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`chat-modal-filter-btn${filterBy === option.value ? ' chat-modal-filter-btn-active' : ''}`}
+                aria-pressed={filterBy === option.value}
+                onClick={() => setFilterBy(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="chat-modal-users" role="listbox" aria-label="Users">
           {isLoadingUsers ? <p className="chat-modal-hint">Loading users...</p> : null}
           {!isLoadingUsers && users.length === 0 ? (
@@ -148,7 +173,10 @@ export function ChatCreationModal({ open, onClose }: ChatCreationModalProps) {
                 title={user.userId}
               >
                 <span className={`chat-modal-badge message-user-id-${colorIndex}`}>{label}</span>
-                <span className="chat-modal-username">{user.username}</span>
+                <span className="chat-modal-user-text">
+                  <span className="chat-modal-username">{user.username}</span>
+                  <span className="chat-modal-userid">{user.userId}</span>
+                </span>
                 <span className="chat-modal-check" aria-hidden="true">
                   {selected ? '✓' : ''}
                 </span>
