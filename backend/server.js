@@ -1737,7 +1737,6 @@ function createPostgresDatabase(config) {
                 if (matchId) {
                     params.push(likePattern);
                     conditions.push(`users.id::TEXT ILIKE $${params.length}`);
-                    // Allow pasting IDs without hyphens (UUIDs contain hyphens in DB).
                     params.push(strippedPattern);
                     conditions.push(`REPLACE(users.id::TEXT, '-', '') ILIKE $${params.length}`);
                 }
