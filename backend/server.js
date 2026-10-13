@@ -1098,6 +1098,12 @@ function createPostgresDatabase(config) {
 
                 CREATE INDEX IF NOT EXISTS users_last_seen_idx
                     ON users (last_seen DESC);
+
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS tag TEXT;
+
+                CREATE INDEX IF NOT EXISTS users_tag_idx
+                    ON users (tag);
             `);
 
             await pool.query(`
@@ -1122,6 +1128,8 @@ function createPostgresDatabase(config) {
                 GROUP BY user_id
                 ON CONFLICT (id) DO NOTHING
             `);
+
+            await backfillUserTags(pool);
         },
 
         async upsertUser({ userId, username, lastSeen, client }) {
@@ -1132,19 +1140,21 @@ function createPostgresDatabase(config) {
             const runner = client || pool;
             const cleanUsername = username ? String(username).trim() : "";
             const seenAt = Number.isFinite(Number(lastSeen)) ? Number(lastSeen) : Date.now();
+            const tag = getUserTag(userId);
 
             if (cleanUsername) {
                 const result = await runner.query(
                     `
-                        INSERT INTO users (id, username, last_seen, updated_at)
-                        VALUES ($1, $2, $3, NOW())
+                        INSERT INTO users (id, username, tag, last_seen, updated_at)
+                        VALUES ($1, $2, $3, $4, NOW())
                         ON CONFLICT (id) DO UPDATE
                             SET username = EXCLUDED.username,
+                                tag = EXCLUDED.tag,
                                 last_seen = GREATEST(users.last_seen, EXCLUDED.last_seen),
                                 updated_at = NOW()
-                        RETURNING id, username, last_seen
+                        RETURNING id, username, tag, last_seen
                     `,
-                    [userId, cleanUsername, seenAt]
+                    [userId, cleanUsername, tag, seenAt]
                 );
 
                 return mapUserRow(result.rows[0]);
@@ -1152,14 +1162,15 @@ function createPostgresDatabase(config) {
 
             const result = await runner.query(
                 `
-                    INSERT INTO users (id, last_seen)
-                    VALUES ($1, $2)
+                    INSERT INTO users (id, tag, last_seen)
+                    VALUES ($1, $2, $3)
                     ON CONFLICT (id) DO UPDATE
-                        SET last_seen = GREATEST(users.last_seen, EXCLUDED.last_seen),
+                        SET tag = EXCLUDED.tag,
+                            last_seen = GREATEST(users.last_seen, EXCLUDED.last_seen),
                             updated_at = NOW()
-                    RETURNING id, username, last_seen
+                    RETURNING id, username, tag, last_seen
                 `,
-                [userId, seenAt]
+                [userId, tag, seenAt]
             );
 
             return mapUserRow(result.rows[0]);
@@ -1172,7 +1183,7 @@ function createPostgresDatabase(config) {
 
             const result = await pool.query(
                 `
-                    SELECT id, username, last_seen
+                    SELECT id, username, tag, last_seen
                     FROM users
                     WHERE id = $1
                 `,
@@ -1598,13 +1609,14 @@ function createPostgresDatabase(config) {
                 for (const memberId of memberIds) {
                     await client.query(
                         `
-                            INSERT INTO users (id, last_seen)
-                            VALUES ($1, $2)
+                            INSERT INTO users (id, tag, last_seen)
+                            VALUES ($1, $2, $3)
                             ON CONFLICT (id) DO UPDATE
-                                SET last_seen = GREATEST(users.last_seen, EXCLUDED.last_seen),
+                                SET tag = EXCLUDED.tag,
+                                    last_seen = GREATEST(users.last_seen, EXCLUDED.last_seen),
                                     updated_at = NOW()
                         `,
-                        [memberId, Date.now()]
+                        [memberId, getUserTag(memberId), Date.now()]
                     );
                 }
 
@@ -1720,25 +1732,21 @@ function createPostgresDatabase(config) {
             }
 
             if (query && String(query).trim()) {
-                const trimmed = String(query).trim();
+                const trimmed = String(query).trim().replace(/^@+/, "");
                 const likePattern = `%${trimmed}%`;
-                const stripped = trimmed.replace(/-/g, "");
-                const strippedPattern = `%${stripped}%`;
                 const mode = String(by || "all").toLowerCase();
-                const matchUsername = mode !== "id" && mode !== "userid" && mode !== "user_id";
-                const matchId = mode !== "username" && mode !== "name";
+                const matchUsername = mode !== "tag" && mode !== "label" && mode !== "id" && mode !== "userid" && mode !== "user_id";
+                const matchTag = mode !== "username" && mode !== "name";
                 const conditions = [];
 
-                if (matchUsername) {
+                if (matchUsername && trimmed) {
                     params.push(likePattern);
                     conditions.push(`users.username ILIKE $${params.length}`);
                 }
 
-                if (matchId) {
+                if (matchTag && trimmed) {
                     params.push(likePattern);
-                    conditions.push(`users.id::TEXT ILIKE $${params.length}`);
-                    params.push(strippedPattern);
-                    conditions.push(`REPLACE(users.id::TEXT, '-', '') ILIKE $${params.length}`);
+                    conditions.push(`users.tag ILIKE $${params.length}`);
                 }
 
                 if (conditions.length > 0) {
@@ -1750,7 +1758,7 @@ function createPostgresDatabase(config) {
 
             const result = await pool.query(
                 `
-                    SELECT id AS user_id, username, last_seen
+                    SELECT id AS user_id, username, tag, last_seen
                     FROM users
                     ${excludeClause}
                     ${searchClause}
@@ -1763,6 +1771,7 @@ function createPostgresDatabase(config) {
             return result.rows.map((row) => ({
                 userId: row.user_id,
                 username: row.username || "unnamed",
+                tag: row.tag || getUserTag(row.user_id),
                 lastSeen: row.last_seen ? Number(row.last_seen) : null,
             }));
         },
@@ -1801,8 +1810,23 @@ function mapUserRow(row) {
     return {
         userId: row.id,
         username: row.username || "unnamed",
+        tag: row.tag || getUserTag(row.id),
         lastSeen: row.last_seen ? Number(row.last_seen) : null,
     };
+}
+
+async function backfillUserTags(queryable) {
+    const missing = await queryable.query(
+        `SELECT id FROM users WHERE tag IS NULL LIMIT 500`
+    );
+
+    for (const row of missing.rows) {
+        await queryable.query(`UPDATE users SET tag = $2 WHERE id = $1`, [row.id, getUserTag(row.id)]);
+    }
+
+    if (missing.rows.length === 500) {
+        await backfillUserTags(queryable);
+    }
 }
 
 function mapMessageRow(row) {
@@ -1893,6 +1917,17 @@ function normalizeUrlBase(url) {
 
 function conversationRoom(conversationId) {
     return `conversation:${conversationId}`;
+}
+
+function getUserTag(userId) {
+    const compactUserId = String(userId || "").replaceAll("-", "");
+    let hash = 0;
+
+    for (const character of compactUserId) {
+        hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+    }
+
+    return hash.toString(36).toUpperCase().padStart(6, "0").slice(-6);
 }
 
 function userRoom(userId) {

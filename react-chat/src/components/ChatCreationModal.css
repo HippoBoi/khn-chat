@@ -113,27 +113,6 @@
   text-align: left;
 }
 
-.chat-modal-user-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  text-align: left;
-}
-
-.chat-modal-userid {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.68rem;
-  font-weight: 400;
-  color: var(--color-muted);
-}
-
 .chat-modal-filter {
   display: flex;
   gap: 0.35rem;

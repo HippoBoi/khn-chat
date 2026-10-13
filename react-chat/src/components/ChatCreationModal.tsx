@@ -15,7 +15,7 @@ interface ChatCreationModalProps {
   onClose: () => void;
 }
 
-type UserFilterMode = 'all' | 'username' | 'userId';
+type UserFilterMode = 'all' | 'username' | 'tag';
 
 export function ChatCreationModal({ open, onClose }: ChatCreationModalProps) {
   const userId = useChatStore((s) => s.userId);
@@ -131,7 +131,7 @@ export function ChatCreationModal({ open, onClose }: ChatCreationModalProps) {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={
-              filterBy === 'userId' ? 'Paste a user ID...' : 'Ramon or user ID...'
+              filterBy === 'tag' ? 'Tag e.g. A1B2C3...' : 'Ramon or @tag...'
             }
           />
           <div className="chat-modal-filter" role="group" aria-label="Filter by">
@@ -139,7 +139,7 @@ export function ChatCreationModal({ open, onClose }: ChatCreationModalProps) {
               [
                 { value: 'all', label: 'All' },
                 { value: 'username', label: 'Name' },
-                { value: 'userId', label: 'ID' },
+                { value: 'tag', label: 'Tag' },
               ] as const
             ).map((option) => (
               <button
@@ -170,13 +170,9 @@ export function ChatCreationModal({ open, onClose }: ChatCreationModalProps) {
                 aria-selected={selected}
                 className={`chat-modal-user${selected ? ' chat-modal-user-selected' : ''}`}
                 onClick={() => toggleSelected(user.userId)}
-                title={user.userId}
               >
                 <span className={`chat-modal-badge message-user-id-${colorIndex}`}>{label}</span>
-                <span className="chat-modal-user-text">
-                  <span className="chat-modal-username">{user.username}</span>
-                  <span className="chat-modal-userid">{user.userId}</span>
-                </span>
+                <span className="chat-modal-username">{user.username}</span>
                 <span className="chat-modal-check" aria-hidden="true">
                   {selected ? '✓' : ''}
                 </span>
