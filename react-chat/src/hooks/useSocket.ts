@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import api from '../services/api';
 import { socket } from '../services/socket';
 import { useChatStore } from '../store/useChatStore';
 import { useConversationStore } from '../store/useConversationStore';
@@ -9,6 +10,15 @@ export function useSocket() {
   const addMessage = useChatStore((s) => s.addMessage);
   const setConnected = useChatStore((s) => s.setConnected);
   const setChatVisible = useChatStore((s) => s.setChatVisible);
+  const username = useChatStore((s) => s.username);
+
+  useEffect(() => {
+    if (!socket.connected) return;
+    const userId = useChatStore.getState().userId;
+    if (userId) {
+      socket.emit('identify', { userId, username: username || undefined });
+    }
+  }, [username]);
 
   useEffect(() => {
     socket.connect();
@@ -17,9 +27,10 @@ export function useSocket() {
       setConnected(true);
       setChatVisible(true);
 
-      const userId = useChatStore.getState().userId;
+      const { userId, username } = useChatStore.getState();
       if (userId) {
-        socket.emit('identify', { userId });
+        socket.emit('identify', { userId, username: username || undefined });
+        api.put(`/users/${encodeURIComponent(userId)}`, { username: username || undefined }).catch(() => {});
       }
       socket.emit('join-conversation', {
         conversationId: useConversationStore.getState().activeConversationId,

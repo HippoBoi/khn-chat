@@ -153,3 +153,58 @@
   color: var(--color-primary-strong);
   font-weight: 800;
 }
+
+.message-image-button {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--cut-sm);
+  color: var(--color-muted);
+  background: var(--color-panel-solid);
+  cursor: zoom-in;
+}
+
+.message-image-button:disabled {
+  cursor: default;
+}
+
+.message-image-button img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.message-image-viewer {
+  max-width: 95vw;
+  max-height: 95dvh;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  background: var(--color-panel-solid);
+}
+
+.message-image-viewer::backdrop {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.message-image-viewer button {
+  display: block;
+  margin: 0 0 0.75rem auto;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  background: var(--color-panel-raised);
+  cursor: pointer;
+}
+
+.message-image-viewer img {
+  display: block;
+  max-width: 90vw;
+  max-height: 80dvh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}

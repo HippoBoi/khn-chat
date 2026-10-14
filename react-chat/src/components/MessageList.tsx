@@ -3,7 +3,7 @@ import { useChatStore } from '../store/useChatStore';
 import { useConversationStore } from '../store/useConversationStore';
 import { PROFILE_PICTURES } from '../constants/profilePictures';
 import { getUserIdLabel } from '../utils/userIdLabel';
-import type { Message } from '../types/message';
+import type { ChatImage, Message } from '../types/message';
 import './MessageList.css';
 import api from '../services/api';
 import { getYouTubeVideoId, VIDEO_PLAYER_MEDIA_QUERY } from '../utils/youtube';
@@ -217,6 +217,49 @@ function MessageTimestamp({ timestamp }: { timestamp: number }) {
   );
 }
 
+function MessageImage({ image, sender }: { image: ChatImage; sender: string }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        className="message-image-button"
+        style={{
+          width: Math.min(320, image.width, 260 * image.width / image.height),
+          aspectRatio: `${image.width} / ${image.height}`,
+        }}
+        onClick={() => dialogRef.current?.showModal()}
+        disabled={failed}
+        aria-label={`View image sent by ${sender}`}
+      >
+        {failed ? <span>Image unavailable</span> : (
+          <img
+            src={image.url}
+            alt={`Image sent by ${sender}`}
+            width={image.width}
+            height={image.height}
+            loading="lazy"
+            onError={() => setFailed(true)}
+          />
+        )}
+      </button>
+      <dialog
+        ref={dialogRef}
+        className="message-image-viewer"
+        aria-label={`Image sent by ${sender}`}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) dialogRef.current?.close();
+        }}
+      >
+        <button type="button" onClick={() => dialogRef.current?.close()} aria-label="Close image">Close</button>
+        <img src={image.url} alt={`Image sent by ${sender}`} loading="lazy" />
+      </dialog>
+    </>
+  );
+}
+
 export function MessageList({ onYouTubeVideoSelect }: MessageListProps) {
   const messages = useChatStore((s) => s.messages);
   const setMessages = useChatStore((s) => s.setMessages);
@@ -224,12 +267,12 @@ export function MessageList({ onYouTubeVideoSelect }: MessageListProps) {
   const messageListRef = useRef<HTMLDivElement>(null);
   const hasSnappedToHistoryRef = useRef(false);
   const isSnappedToBottomRef = useRef(true);
-  const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
+  const [loadedConversationId, setLoadedConversationId] = useState<string | null>(null);
+  const hasLoadedHistory = loadedConversationId === activeConversationId;
 
   useEffect(() => {
     let cancelled = false;
     hasSnappedToHistoryRef.current = false;
-    setHasLoadedHistory(false);
 
     const fetchMessages = async () => {
       const response = await api.get<MessagesResponse>(
@@ -237,7 +280,7 @@ export function MessageList({ onYouTubeVideoSelect }: MessageListProps) {
       );
       if (cancelled) return;
       setMessages(response.data.messages);
-      setHasLoadedHistory(true);
+      setLoadedConversationId(activeConversationId);
     };
 
     fetchMessages();
@@ -289,11 +332,14 @@ export function MessageList({ onYouTubeVideoSelect }: MessageListProps) {
                 <MessageTimestamp timestamp={msg.timestamp} />
               </span>
             </div>
-            <MessageText
-              text={msg.text}
-              pingLabels={getMessagePingLabels(msg)}
-              onYouTubeVideoSelect={onYouTubeVideoSelect}
-            />
+            {msg.image && <MessageImage key={msg.image.id} image={msg.image} sender={msg.sender} />}
+            {msg.text && (
+              <MessageText
+                text={msg.text}
+                pingLabels={getMessagePingLabels(msg)}
+                onYouTubeVideoSelect={onYouTubeVideoSelect}
+              />
+            )}
           </div>
         </div>
       ))}

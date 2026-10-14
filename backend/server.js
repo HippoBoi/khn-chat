@@ -3,12 +3,13 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const { URL } = require("url");
-const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+const { DeleteObjectCommand, PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const { Pool } = require("pg");
 const { Server } = require("socket.io");
 const { initializeApp: initializeFirebaseApp, cert } = require("firebase-admin/app");
 const { getMessaging } = require("firebase-admin/messaging");
+const sharp = require("sharp");
 
 loadEnvFile();
 
@@ -24,11 +25,14 @@ const appAndroidLatestVersionName = process.env.APP_ANDROID_LATEST_VERSION_NAME 
 const appAndroidDownloadUrl = process.env.APP_ANDROID_DOWNLOAD_URL || "";
 const appAndroidUpdateMessage = process.env.APP_ANDROID_UPDATE_MESSAGE || "old version error";
 const maxMessageTextLength = 1000;
+const maxUsernameLength = 12;
 const maxPingedUsers = 20;
 const databaseUrl = process.env.DATABASE_URL;
 const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const maxProfilePictureSizeBytes = 2 * 1024 * 1024;
 const maxProfilePictureUploadBytes = 3 * 1024 * 1024;
+const maxChatImageSizeBytes = 5 * 1024 * 1024;
+const chatImageUploadAttempts = new Map();
 const allowedProfilePictureTypes = new Map([
     ["image/png", "png"],
     ["image/jpeg", "jpg"],
@@ -147,6 +151,19 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
+        if (req.method === "POST" && requestUrl.pathname === "/uploads/chat-image/file") {
+            checkChatImageUploadRate(req.socket.remoteAddress);
+            const userId = validateUserId(requestUrl.searchParams.get("userId"));
+            const conversationId = requestUrl.searchParams.get("conversationId") || defaultConversationId;
+            if (!userId) {
+                throw httpError(400, "User ID is required");
+            }
+            const bytes = await readRawBody(req, maxChatImageSizeBytes);
+            const image = await saveChatImageFile({ bytes, userId, conversationId });
+            sendJson(res, 201, { image });
+            return;
+        }
+
         if (req.method === "GET" && requestUrl.pathname === "/notifications") {
             const userId = validateUserId(requestUrl.searchParams.get("userId"));
             const limit = Number(requestUrl.searchParams.get("limit") || notificationHistoryLimit);
@@ -227,10 +244,57 @@ const server = http.createServer(async (req, res) => {
             const users = await database.listUsers({
                 excludeUserId: excludeUserId || null,
                 query: requestUrl.searchParams.get("q") || "",
+                by: requestUrl.searchParams.get("by") || "all",
                 limit: Number(requestUrl.searchParams.get("limit") || 50),
             });
 
             sendJson(res, 200, { users });
+            return;
+        }
+
+        const userIdMatch = requestUrl.pathname.match(/^\/users\/([^/]+)$/);
+        if (userIdMatch && (req.method === "PUT" || req.method === "POST")) {
+            const pathUserId = validateUserId(decodeURIComponent(userIdMatch[1]));
+
+            if (!pathUserId) {
+                throw httpError(400, "User ID must be a valid UUID");
+            }
+
+            const payload = await readJsonBody(req);
+            const username = validateUsername(payload.username);
+
+            if (payload.userId) {
+                const bodyUserId = validateUserId(payload.userId);
+
+                if (bodyUserId && bodyUserId !== pathUserId) {
+                    throw httpError(400, "User ID mismatch");
+                }
+            }
+
+            const user = await database.upsertUser({
+                userId: pathUserId,
+                username: username || undefined,
+                lastSeen: Date.now(),
+            });
+
+            sendJson(res, 200, { user });
+            return;
+        }
+
+        if (userIdMatch && req.method === "GET") {
+            const pathUserId = validateUserId(decodeURIComponent(userIdMatch[1]));
+
+            if (!pathUserId) {
+                throw httpError(400, "User ID must be a valid UUID");
+            }
+
+            const user = await database.getUser(pathUserId);
+
+            if (!user) {
+                throw httpError(404, "User not found");
+            }
+
+            sendJson(res, 200, { user });
             return;
         }
 
@@ -288,10 +352,12 @@ const server = http.createServer(async (req, res) => {
         if (req.method === "POST" && conversationMessagesMatch) {
             const conversationId = decodeURIComponent(conversationMessagesMatch[1]);
             const payload = await readJsonBody(req);
-            const message = await saveIncomingMessage(payload, conversationId);
+            const { message, isNew } = await saveIncomingMessage(payload, conversationId);
 
-            io.to(conversationRoom(conversationId)).emit("message", message);
-            await notifyRecipients(message);
+            if (isNew) {
+                io.to(conversationRoom(conversationId)).emit("message", message);
+                await notifyRecipients(message);
+            }
             sendJson(res, 201, { message });
             return;
         }
@@ -314,11 +380,26 @@ io.on("connection", (socket) => {
     socket.join(conversationRoom(socket.data.conversationId));
 
     socket.on("identify", (payload) => {
-        const userId = validateUserId(payload && payload.userId);
+        let userId = null;
+
+        try {
+            userId = validateUserId(payload && payload.userId);
+        } catch {
+            return;
+        }
 
         if (userId) {
             socket.data.userId = userId;
             socket.join(userRoom(userId));
+            let username = null;
+
+            try {
+                username = validateUsername(payload && payload.username, { allowEmpty: true });
+            } catch {
+                username = null;
+            }
+
+            database.upsertUser({ userId, username: username || undefined, lastSeen: Date.now() }).catch(() => {});
             database.ensurePublicMembership(userId).catch(() => {});
         }
     });
@@ -337,10 +418,12 @@ io.on("connection", (socket) => {
 
     socket.on("message", async (payload, ack) => {
         try {
-            const message = await saveIncomingMessage(payload, payload.conversationId || conversationId);
+            const { message, isNew } = await saveIncomingMessage(payload, payload.conversationId || conversationId);
 
-            io.to(conversationRoom(message.conversationId)).emit("message", message);
-            await notifyRecipients(message);
+            if (isNew) {
+                io.to(conversationRoom(message.conversationId)).emit("message", message);
+                await notifyRecipients(message);
+            }
 
             if (typeof ack === "function") {
                 ack({ ok: true, message });
@@ -361,6 +444,10 @@ startServer().catch((error) => {
 async function startServer() {
     initializeFirebaseMessaging();
     await database.initialize();
+    cleanupChatImageUploads().catch((error) => console.error("Image cleanup failed:", error.message));
+    setInterval(() => {
+        cleanupChatImageUploads().catch((error) => console.error("Image cleanup failed:", error.message));
+    }, 60 * 60 * 1000).unref();
 
     server.listen(port, () => {
         console.log("running on port " + port);
@@ -434,7 +521,7 @@ async function notifyRecipients(message) {
         conversationId: message.conversationId,
         type: "message",
         title: message.sender,
-        body: message.text,
+        body: message.text || "Image",
         data: {
             messageId: message.id,
             profilePictureUrl: message.profilePictureUrl || null,
@@ -536,15 +623,21 @@ function validateMessagePayload(payload, conversationId) {
         throw httpError(400, "Message payload is required");
     }
 
-    const text = String(payload.text || "").trim().slice(0, maxMessageTextLength);
+    const text = String(payload.text || "").trim();
     const sender = String(payload.sender || "unnamed").trim();
     const userId = validateUserId(payload.userId);
     const profilePictureIndex = Number(payload.profilePictureIndex || 0);
     const profilePictureUrl = validateProfilePictureUrl(payload.profilePictureUrl);
     const pingedUserIds = validatePingedUserIds(payload.pingedUserIds, userId);
+    const imageId = validateUserId(payload.imageId);
+    const id = validateUserId(payload.id) || crypto.randomUUID();
 
-    if (!text) {
-        throw httpError(400, "Message text is required");
+    if (!text && !imageId) {
+        throw httpError(400, "Message text or an image is required");
+    }
+
+    if (imageId && !userId) {
+        throw httpError(400, "User ID is required for image messages");
     }
 
     if (text.length > maxMessageTextLength) {
@@ -552,6 +645,8 @@ function validateMessagePayload(payload, conversationId) {
     }
 
     return {
+        id,
+        imageId,
         conversationId: String(conversationId || defaultConversationId),
         text,
         sender: sender || "unnamed",
@@ -574,6 +669,28 @@ function validateUserId(value) {
     }
 
     return userId;
+}
+
+function validateUsername(value, options = {}) {
+    if (value === undefined || value === null) {
+        if (options.allowEmpty) {
+            return null;
+        }
+
+        return null;
+    }
+
+    const username = String(value).trim();
+
+    if (!username) {
+        return null;
+    }
+
+    if (username.length > maxUsernameLength) {
+        throw httpError(400, `Username must be ${maxUsernameLength} characters or fewer`);
+    }
+
+    return username;
 }
 
 function validatePingedUserIds(value, excludeUserId) {
@@ -637,6 +754,73 @@ async function createProfilePictureUpload(payload) {
         publicUrl,
         key: objectKey,
     };
+}
+
+function checkChatImageUploadRate(address) {
+    const now = Date.now();
+    for (const [key, attempt] of chatImageUploadAttempts) {
+        if (now - attempt.startedAt >= 60 * 1000) {
+            chatImageUploadAttempts.delete(key);
+        }
+    }
+    const attempt = chatImageUploadAttempts.get(address) || { startedAt: now, count: 0 };
+    if (attempt.count >= 10) {
+        throw httpError(429, "Too many image uploads. Please wait a minute.");
+    }
+    attempt.count += 1;
+    chatImageUploadAttempts.set(address, attempt);
+}
+
+async function saveChatImageFile({ bytes, userId, conversationId }) {
+    if (!bytes.length || bytes.length > maxChatImageSizeBytes) {
+        throw httpError(400, "Image must be nonempty and 5 MB or smaller");
+    }
+    let output;
+    try {
+        const input = sharp(bytes, { limitInputPixels: 40 * 1000 * 1000 });
+        const metadata = await input.metadata();
+        if (!["jpeg", "png", "webp"].includes(metadata.format) || (metadata.pages || 1) > 1) {
+            throw new Error("Unsupported image");
+        }
+        output = await input.rotate()
+            .resize({ width: 2560, height: 2560, fit: "inside", withoutEnlargement: true })
+            .webp({ quality: 90 }).toBuffer({ resolveWithObject: true });
+    } catch {
+        throw httpError(400, "Use a valid, still PNG, JPG, or WebP image (up to 40 megapixels)");
+    }
+    if (output.data.length > maxChatImageSizeBytes) {
+        throw httpError(400, "Image must be 5 MB or smaller");
+    }
+    const config = getS3ProfilePictureConfig();
+    const id = crypto.randomUUID();
+    const image = {
+        id,
+        key: `chat-images/${id}.webp`,
+        contentType: "image/webp",
+        sizeBytes: output.data.length,
+        width: output.info.width,
+        height: output.info.height,
+    };
+    await config.client.send(new PutObjectCommand({
+        Bucket: config.bucket,
+        Key: image.key,
+        Body: output.data,
+        ContentType: image.contentType,
+    }));
+    try {
+        await database.saveChatImageUpload({ image, userId, conversationId });
+    } catch (error) {
+        await config.client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: image.key })).catch(() => {});
+        throw error;
+    }
+    return { ...image, url: `${config.publicBaseUrl}/${image.key}` };
+}
+
+async function cleanupChatImageUploads() {
+    await database.removeExpiredChatImageUploads(async (image) => {
+        const config = getS3ProfilePictureConfig();
+        await config.client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: image.key }));
+    });
 }
 
 async function saveProfilePictureFile({ contentTypeHeader, fileName, bytes }) {
@@ -810,6 +994,9 @@ function createPostgresDatabase(config) {
 
                 ALTER TABLE messages
                 ADD COLUMN IF NOT EXISTS pinged_user_ids JSONB;
+
+                ALTER TABLE messages
+                ADD COLUMN IF NOT EXISTS image JSONB;
             `);
 
             await pool.query(`
@@ -860,6 +1047,23 @@ function createPostgresDatabase(config) {
 
                 CREATE INDEX IF NOT EXISTS conversation_members_user_idx
                     ON conversation_members (user_id);
+
+                CREATE TABLE IF NOT EXISTS chat_image_uploads (
+                    id UUID PRIMARY KEY,
+                    conversation_id TEXT NOT NULL REFERENCES conversations (id),
+                    user_id UUID NOT NULL,
+                    image JSONB NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'deleted')),
+                    message_id UUID REFERENCES messages (id) ON DELETE SET NULL
+                );
+
+                ALTER TABLE chat_image_uploads
+                ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'sent', 'deleted'));
+
+                ALTER TABLE chat_image_uploads
+                ADD COLUMN IF NOT EXISTS message_id UUID REFERENCES messages (id) ON DELETE SET NULL;
             `);
 
             await pool.query(
@@ -879,6 +1083,118 @@ function createPostgresDatabase(config) {
                 `,
                 [defaultConversationId, "General", "Public"]
             );
+
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS users (
+                    id UUID PRIMARY KEY,
+                    username TEXT NOT NULL DEFAULT 'unnamed',
+                    last_seen BIGINT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+
+                CREATE INDEX IF NOT EXISTS users_username_idx
+                    ON users (username);
+
+                CREATE INDEX IF NOT EXISTS users_last_seen_idx
+                    ON users (last_seen DESC);
+
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS tag TEXT;
+
+                CREATE INDEX IF NOT EXISTS users_tag_idx
+                    ON users (tag);
+            `);
+
+            await pool.query(`
+                INSERT INTO users (id, username, last_seen)
+                SELECT
+                    user_id AS id,
+                    COALESCE(MAX(username), 'unnamed') AS username,
+                    COALESCE(MAX(seen_at), 0)::BIGINT AS last_seen
+                FROM (
+                    SELECT user_id, sender AS username, timestamp AS seen_at
+                    FROM messages
+                    WHERE user_id IS NOT NULL
+                    UNION ALL
+                    SELECT user_id, title AS username, EXTRACT(EPOCH FROM created_at) * 1000 AS seen_at
+                    FROM notifications
+                    WHERE user_id IS NOT NULL AND type = 'message'
+                    UNION ALL
+                    SELECT user_id, NULL AS username, EXTRACT(EPOCH FROM created_at) * 1000 AS seen_at
+                    FROM push_subscriptions
+                    WHERE user_id IS NOT NULL
+                ) AS legacy
+                GROUP BY user_id
+                ON CONFLICT (id) DO NOTHING
+            `);
+
+            await backfillUserTags(pool);
+        },
+
+        async upsertUser({ userId, username, lastSeen, client }) {
+            if (!userId) {
+                return null;
+            }
+
+            const runner = client || pool;
+            const cleanUsername = username ? String(username).trim() : "";
+            const seenAt = Number.isFinite(Number(lastSeen)) ? Number(lastSeen) : Date.now();
+            const tag = getUserTag(userId);
+
+            if (cleanUsername) {
+                const result = await runner.query(
+                    `
+                        INSERT INTO users (id, username, tag, last_seen, updated_at)
+                        VALUES ($1, $2, $3, $4, NOW())
+                        ON CONFLICT (id) DO UPDATE
+                            SET username = EXCLUDED.username,
+                                tag = EXCLUDED.tag,
+                                last_seen = GREATEST(users.last_seen, EXCLUDED.last_seen),
+                                updated_at = NOW()
+                        RETURNING id, username, tag, last_seen
+                    `,
+                    [userId, cleanUsername, tag, seenAt]
+                );
+
+                return mapUserRow(result.rows[0]);
+            }
+
+            const result = await runner.query(
+                `
+                    INSERT INTO users (id, tag, last_seen)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (id) DO UPDATE
+                        SET tag = EXCLUDED.tag,
+                            last_seen = GREATEST(users.last_seen, EXCLUDED.last_seen),
+                            updated_at = NOW()
+                    RETURNING id, username, tag, last_seen
+                `,
+                [userId, tag, seenAt]
+            );
+
+            return mapUserRow(result.rows[0]);
+        },
+
+        async getUser(userId) {
+            if (!userId) {
+                return null;
+            }
+
+            const result = await pool.query(
+                `
+                    SELECT id, username, tag, last_seen
+                    FROM users
+                    WHERE id = $1
+                `,
+                [userId]
+            );
+
+            if (!result.rows.length) {
+                return null;
+            }
+
+            return mapUserRow(result.rows[0]);
         },
 
         async ensurePublicMembership(userId) {
@@ -903,62 +1219,148 @@ function createPostgresDatabase(config) {
                 `,
                 [defaultConversationId, userId]
             );
+
+            await this.upsertUser({ userId, lastSeen: Date.now() });
+        },
+
+        async saveChatImageUpload({ image, userId, conversationId }) {
+            await pool.query(
+                "INSERT INTO chat_image_uploads (id, conversation_id, user_id, image) VALUES ($1, $2, $3, $4)",
+                [image.id, conversationId, userId, JSON.stringify(image)]
+            );
+        },
+
+        async removeExpiredChatImageUploads(deleteImage) {
+            const client = await pool.connect();
+            try {
+                await client.query("BEGIN");
+                const uploads = await client.query(
+                    `SELECT id, image FROM chat_image_uploads
+                     WHERE status = 'pending' AND created_at <= NOW() - INTERVAL '24 hours'
+                     LIMIT 100 FOR UPDATE SKIP LOCKED`
+                );
+                for (const upload of uploads.rows) {
+                    await deleteImage(upload.image);
+                    await client.query("UPDATE chat_image_uploads SET status = 'deleted' WHERE id = $1", [upload.id]);
+                }
+                await client.query("COMMIT");
+            } catch (error) {
+                await client.query("ROLLBACK");
+                throw error;
+            } finally {
+                client.release();
+            }
         },
 
         async saveMessage(message) {
-            const id = crypto.randomUUID();
+            const id = message.id;
             const timestamp = Date.now();
+            const client = await pool.connect();
 
-            if (message.userId && message.conversationId === defaultConversationId) {
-                await pool.query(
+            try {
+                await client.query("BEGIN");
+                await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [id]);
+                const existing = await client.query("SELECT * FROM messages WHERE id = $1", [id]);
+                if (existing.rows.length) {
+                    const saved = mapMessageRow(existing.rows[0]);
+                    if (saved.conversationId !== message.conversationId || saved.userId !== message.userId ||
+                        saved.text !== message.text || (saved.image?.id || null) !== message.imageId) {
+                        throw httpError(409, "Message ID is already in use");
+                    }
+                    await client.query("COMMIT");
+                    return { message: saved, isNew: false };
+                }
+
+                let image = null;
+                if (message.imageId) {
+                    const upload = await client.query(
+                        `SELECT image FROM chat_image_uploads
+                         WHERE id = $1 AND conversation_id = $2 AND user_id = $3
+                         AND status = 'pending' AND created_at > NOW() - INTERVAL '24 hours' FOR UPDATE`,
+                        [message.imageId, message.conversationId, message.userId]
+                    );
+                    if (!upload.rows.length) {
+                        throw httpError(400, "Image upload expired or is unavailable. Please upload it again.");
+                    }
+                    image = upload.rows[0].image;
+                }
+
+                if (message.userId && message.conversationId === defaultConversationId) {
+                    await client.query(
+                        `
+                            INSERT INTO conversation_members (conversation_id, user_id)
+                            VALUES ($1, $2)
+                            ON CONFLICT DO NOTHING
+                        `,
+                        [defaultConversationId, message.userId]
+                    );
+                }
+
+                const result = await client.query(
                     `
-                        INSERT INTO conversation_members (conversation_id, user_id)
-                        VALUES ($1, $2)
-                        ON CONFLICT DO NOTHING
+                        INSERT INTO messages (
+                            id,
+                            conversation_id,
+                            text,
+                            sender,
+                            user_id,
+                            timestamp,
+                            profile_picture_index,
+                            profile_picture_url,
+                            pinged_user_ids,
+                            image
+                        )
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                        RETURNING
+                            id,
+                            conversation_id,
+                            text,
+                            sender,
+                            user_id,
+                            timestamp,
+                            profile_picture_index,
+                            profile_picture_url,
+                            pinged_user_ids,
+                            image
                     `,
-                    [defaultConversationId, message.userId]
+                    [
+                        id,
+                        message.conversationId,
+                        message.text,
+                        message.sender,
+                        message.userId,
+                        timestamp,
+                        message.profilePictureIndex,
+                        message.profilePictureUrl,
+                        JSON.stringify(message.pingedUserIds || []),
+                        JSON.stringify(image),
+                    ]
                 );
+
+                if (message.imageId) {
+                    await client.query(
+                        "UPDATE chat_image_uploads SET status = 'sent', message_id = $2 WHERE id = $1",
+                        [message.imageId, id]
+                    );
+                }
+
+                if (message.userId) {
+                    await this.upsertUser({
+                        userId: message.userId,
+                        username: message.sender && message.sender !== "unnamed" ? message.sender : undefined,
+                        lastSeen: timestamp,
+                        client,
+                    });
+                }
+
+                await client.query("COMMIT");
+                return { message: mapMessageRow(result.rows[0]), isNew: true };
+            } catch (error) {
+                await client.query("ROLLBACK");
+                throw error;
+            } finally {
+                client.release();
             }
-
-            const result = await pool.query(
-                `
-                    INSERT INTO messages (
-                        id,
-                        conversation_id,
-                        text,
-                        sender,
-                        user_id,
-                        timestamp,
-                        profile_picture_index,
-                        profile_picture_url,
-                        pinged_user_ids
-                    )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                    RETURNING
-                        id,
-                        conversation_id,
-                        text,
-                        sender,
-                        user_id,
-                        timestamp,
-                        profile_picture_index,
-                        profile_picture_url,
-                        pinged_user_ids
-                `,
-                [
-                    id,
-                    message.conversationId,
-                    message.text,
-                    message.sender,
-                    message.userId,
-                    timestamp,
-                    message.profilePictureIndex,
-                    message.profilePictureUrl,
-                    JSON.stringify(message.pingedUserIds || []),
-                ]
-            );
-
-            return mapMessageRow(result.rows[0]);
         },
 
         async getMessages({ conversationId, limit, after }) {
@@ -983,7 +1385,8 @@ function createPostgresDatabase(config) {
                         timestamp,
                         profile_picture_index,
                         profile_picture_url,
-                        pinged_user_ids
+                        pinged_user_ids,
+                        image
                     FROM messages
                     WHERE conversation_id = $1
                     ${afterClause}
@@ -1032,6 +1435,10 @@ function createPostgresDatabase(config) {
                     JSON.stringify(notification.data || {}),
                 ]
             );
+
+            if (notification.userId) {
+                await this.upsertUser({ userId: notification.userId, lastSeen: Date.now() }).catch(() => {});
+            }
 
             return mapNotificationRow(result.rows[0]);
         },
@@ -1131,6 +1538,10 @@ function createPostgresDatabase(config) {
                 `,
                 [crypto.randomUUID(), userId, token, conversationId]
             );
+
+            if (userId) {
+                await this.upsertUser({ userId, lastSeen: Date.now() }).catch(() => {});
+            }
         },
 
         async removePushSubscription({ userId, token }) {
@@ -1192,6 +1603,20 @@ function createPostgresDatabase(config) {
                             ON CONFLICT DO NOTHING
                         `,
                         [id, memberId]
+                    );
+                }
+
+                for (const memberId of memberIds) {
+                    await client.query(
+                        `
+                            INSERT INTO users (id, tag, last_seen)
+                            VALUES ($1, $2, $3)
+                            ON CONFLICT (id) DO UPDATE
+                                SET tag = EXCLUDED.tag,
+                                    last_seen = GREATEST(users.last_seen, EXCLUDED.last_seen),
+                                    updated_at = NOW()
+                        `,
+                        [memberId, getUserTag(memberId), Date.now()]
                     );
                 }
 
@@ -1295,7 +1720,7 @@ function createPostgresDatabase(config) {
             }));
         },
 
-        async listUsers({ excludeUserId, query, limit }) {
+        async listUsers({ excludeUserId, query, by, limit }) {
             const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
             const params = [];
             let excludeClause = "";
@@ -1303,41 +1728,38 @@ function createPostgresDatabase(config) {
 
             if (excludeUserId) {
                 params.push(excludeUserId);
-                excludeClause = `WHERE ranked.user_id != $${params.length}`;
+                excludeClause = `WHERE users.id != $${params.length}`;
             }
 
             if (query && String(query).trim()) {
-                params.push(`%${String(query).trim()}%`);
-                searchClause = `${excludeClause ? "AND" : "WHERE"} ranked.username ILIKE $${params.length}`;
+                const trimmed = String(query).trim().replace(/^@+/, "");
+                const likePattern = `%${trimmed}%`;
+                const mode = String(by || "all").toLowerCase();
+                const matchUsername = mode !== "tag" && mode !== "label" && mode !== "id" && mode !== "userid" && mode !== "user_id";
+                const matchTag = mode !== "username" && mode !== "name";
+                const conditions = [];
+
+                if (matchUsername && trimmed) {
+                    params.push(likePattern);
+                    conditions.push(`users.username ILIKE $${params.length}`);
+                }
+
+                if (matchTag && trimmed) {
+                    params.push(likePattern);
+                    conditions.push(`users.tag ILIKE $${params.length}`);
+                }
+
+                if (conditions.length > 0) {
+                    searchClause = `${excludeClause ? "AND" : "WHERE"} (${conditions.join(" OR ")})`;
+                }
             }
 
             params.push(safeLimit);
 
             const result = await pool.query(
                 `
-                    WITH combined AS (
-                        SELECT user_id, sender AS username, timestamp AS seen_at
-                        FROM messages
-                        WHERE user_id IS NOT NULL
-                        UNION ALL
-                        SELECT user_id, title AS username, EXTRACT(EPOCH FROM created_at) * 1000 AS seen_at
-                        FROM notifications
-                        WHERE user_id IS NOT NULL AND type = 'message'
-                        UNION ALL
-                        SELECT user_id, NULL AS username, EXTRACT(EPOCH FROM created_at) * 1000 AS seen_at
-                        FROM push_subscriptions
-                        WHERE user_id IS NOT NULL
-                    ),
-                    ranked AS (
-                        SELECT
-                            user_id,
-                            MAX(username) AS username,
-                            MAX(seen_at) AS last_seen
-                        FROM combined
-                        GROUP BY user_id
-                    )
-                    SELECT user_id, username, last_seen
-                    FROM ranked
+                    SELECT id AS user_id, username, tag, last_seen
+                    FROM users
                     ${excludeClause}
                     ${searchClause}
                     ORDER BY last_seen DESC
@@ -1349,6 +1771,7 @@ function createPostgresDatabase(config) {
             return result.rows.map((row) => ({
                 userId: row.user_id,
                 username: row.username || "unnamed",
+                tag: row.tag || getUserTag(row.user_id),
                 lastSeen: row.last_seen ? Number(row.last_seen) : null,
             }));
         },
@@ -1379,6 +1802,33 @@ function createPostgresDatabase(config) {
     };
 }
 
+function mapUserRow(row) {
+    if (!row) {
+        return null;
+    }
+
+    return {
+        userId: row.id,
+        username: row.username || "unnamed",
+        tag: row.tag || getUserTag(row.id),
+        lastSeen: row.last_seen ? Number(row.last_seen) : null,
+    };
+}
+
+async function backfillUserTags(queryable) {
+    const missing = await queryable.query(
+        `SELECT id FROM users WHERE tag IS NULL LIMIT 500`
+    );
+
+    for (const row of missing.rows) {
+        await queryable.query(`UPDATE users SET tag = $2 WHERE id = $1`, [row.id, getUserTag(row.id)]);
+    }
+
+    if (missing.rows.length === 500) {
+        await backfillUserTags(queryable);
+    }
+}
+
 function mapMessageRow(row) {
     return {
         id: row.id,
@@ -1390,6 +1840,10 @@ function mapMessageRow(row) {
         profilePictureIndex: row.profile_picture_index,
         profilePictureUrl: row.profile_picture_url,
         pingedUserIds: row.pinged_user_ids || [],
+        image: row.image ? {
+            ...row.image,
+            url: `${normalizeUrlBase(process.env.S3_PROFILE_PICTURES_PUBLIC_BASE_URL)}/${row.image.key}`,
+        } : null,
     };
 }
 
@@ -1465,6 +1919,17 @@ function conversationRoom(conversationId) {
     return `conversation:${conversationId}`;
 }
 
+function getUserTag(userId) {
+    const compactUserId = String(userId || "").replaceAll("-", "");
+    let hash = 0;
+
+    for (const character of compactUserId) {
+        hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+    }
+
+    return hash.toString(36).toUpperCase().padStart(6, "0").slice(-6);
+}
+
 function userRoom(userId) {
     return `user:${userId}`;
 }
@@ -1484,7 +1949,7 @@ function setCorsHeaders(req, res) {
     }
 
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 

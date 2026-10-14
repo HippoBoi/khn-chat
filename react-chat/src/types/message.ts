@@ -1,3 +1,13 @@
+export interface ChatImage {
+  id: string;
+  key: string;
+  url: string;
+  contentType: string;
+  sizeBytes: number;
+  width: number;
+  height: number;
+}
+
 export interface Message {
   id: string;
   text: string;
@@ -8,4 +18,5 @@ export interface Message {
   profilePictureUrl?: string | null;
   pingedUserIds?: string[];
   conversationId?: string | null;
+  image?: ChatImage | null;
 }

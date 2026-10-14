@@ -113,6 +113,30 @@
   text-align: left;
 }
 
+.chat-modal-filter {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.chat-modal-filter-btn {
+  flex: 1;
+  min-height: 30px;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--cut-sm);
+  corner-shape: bevel;
+  background: var(--color-panel-soft);
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.chat-modal-filter-btn-active {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-soft);
+  color: var(--color-text-strong);
+}
+
 .chat-modal-check {
   width: 20px;
   color: var(--color-accent-strong);
