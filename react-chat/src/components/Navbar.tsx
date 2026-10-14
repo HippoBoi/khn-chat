@@ -7,14 +7,15 @@ interface NavbarProps {
   onMenuClick: () => void;
   sidebarOpen: boolean;
   onAccountClick: () => void;
+  hasNewChat?: boolean;
 }
 
-function Navbar({ onMenuClick, sidebarOpen, onAccountClick }: NavbarProps) {
+function Navbar({ onMenuClick, sidebarOpen, onAccountClick, hasNewChat = false }: NavbarProps) {
     return (
         <div className="navbar">
             <div className="navbar-inner">
                 <div className="navbar-side navbar-side--left">
-                    <SidebarButton onClick={onMenuClick} open={sidebarOpen} />
+                    <SidebarButton onClick={onMenuClick} open={sidebarOpen} hasNew={hasNewChat} />
                 </div>
                 <div className="navbar-center">
                     <Title />

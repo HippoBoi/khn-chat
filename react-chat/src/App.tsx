@@ -31,6 +31,8 @@ function App() {
   const isChatVisible = useChatStore((s) => s.isChatVisible);
   const activeConversationId = useConversationStore((s) => s.activeConversationId);
   const conversations = useConversationStore((s) => s.conversations);
+  const unseenConversationIds = useConversationStore((s) => s.unseenConversationIds);
+  const hasNewChat = unseenConversationIds.length > 0;
   const activeConversation = conversations.find((c) => c.id === activeConversationId);
 
   useEffect(() => {
@@ -61,6 +63,7 @@ function App() {
       onMenuClick={() => setIsSidebarOpen((v) => !v)}
       sidebarOpen={isSidebarOpen}
       onAccountClick={() => setIsAccountOpen(true)}
+      hasNewChat={hasNewChat}
     />
     {/* <ConnectionStatus /> */}
     <div className={`app-layout${selectedYouTubeVideoId ? ' app-layout--with-video' : ''}`}>

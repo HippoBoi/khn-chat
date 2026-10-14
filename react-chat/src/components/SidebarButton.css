@@ -2,6 +2,7 @@
   display: none;
   align-items: center;
   justify-content: center;
+  position: relative;
   min-height: 36px;
   width: 40px;
   height: 36px;
@@ -11,6 +12,20 @@
   color: var(--color-text-strong);
   font-size: 1.1rem;
   background: transparent;
+}
+
+.sidebar-button-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary-strong);
+  font-size: 0.55rem;
+  line-height: 1;
+  background: var(--color-page);
+  border-radius: 50%;
 }
 
 .sidebar-button:hover:not(:disabled) {

@@ -14,6 +14,7 @@ export function ChatList({ onCreateClick, open = false, onClose }: ChatListProps
   const activeConversationId = useConversationStore((s) => s.activeConversationId);
   const setActiveConversation = useConversationStore((s) => s.setActiveConversation);
   const unreadByConversation = useConversationStore((s) => s.unreadByConversation);
+  const unseenConversationIds = useConversationStore((s) => s.unseenConversationIds);
   const isLoading = useConversationStore((s) => s.isLoading);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -85,6 +86,7 @@ export function ChatList({ onCreateClick, open = false, onClose }: ChatListProps
         {conversations.map((conversation) => {
           const unread = unreadByConversation[conversation.id] ?? 0;
           const isActive = conversation.id === activeConversationId;
+          const isNew = unseenConversationIds.includes(conversation.id);
           return (
             <button
               key={conversation.id}
@@ -97,11 +99,18 @@ export function ChatList({ onCreateClick, open = false, onClose }: ChatListProps
               <span className="chat-list-item-main">
                 <span className="chat-list-item-name">{conversation.name}</span>
               </span>
-              {unread > 0 ? (
-                <span className="chat-list-unread" aria-label={`${unread} unread`}>
-                  {unread > 99 ? '99+' : unread}
-                </span>
-              ) : null}
+              <span className="chat-list-item-badges">
+                {isNew ? (
+                  <span className="chat-list-new" title="New chat" aria-label="New chat">
+                    <i className="fa-solid fa-circle" aria-hidden="true" />
+                  </span>
+                ) : null}
+                {unread > 0 && !isNew ? (
+                  <span className="chat-list-unread" aria-label={`${unread} unread`}>
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                ) : null}
+              </span>
             </button>
           );
         })}

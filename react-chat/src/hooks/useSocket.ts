@@ -45,8 +45,15 @@ export function useSocket() {
 
     const handleInvite = (payload: { conversation: Conversation }) => {
       if (payload && payload.conversation) {
-        useConversationStore.getState().addConversation(payload.conversation);
-        useConversationStore.getState().fetchUnreadCounts();
+        const store = useConversationStore.getState();
+        store.addConversation(payload.conversation);
+        const currentUserId = useChatStore.getState().userId;
+        if (payload.conversation.createdBy && currentUserId &&
+          payload.conversation.createdBy.toLowerCase() === currentUserId.toLowerCase()) {
+          return;
+        }
+        store.markConversationUnseen(payload.conversation.id);
+        store.fetchUnreadCounts();
       }
     };
 

@@ -191,6 +191,22 @@
   font-weight: 600;
 }
 
+.chat-list-item-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.chat-list-new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary-strong);
+  font-size: 0.55rem;
+  line-height: 1;
+}
+
 .chat-list-unread {
   display: inline-flex;
   align-items: center;
